@@ -2,7 +2,7 @@
 
 ## Description
 
-`useReactive` is a custom React hook that provides a reactive state object. It enables fine-grained reactivity similar to Vue's `reactive` function, allowing computed properties (getters) and automatic re-renders when properties change.
+`useReactive` is a custom React hook that provides a reactive state object with methods and getters. It enables fine-grained reactivity with direct proprty access. Methods on the state object are bound allowing `this` to be used within the methods. Computed properties (getters) are also allowed. Changes to the state triggers re-render.
 
 ## Installation
 

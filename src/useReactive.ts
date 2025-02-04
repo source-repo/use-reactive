@@ -115,6 +115,15 @@ export function useReactive<T extends object>(
         const key = prop as keyof T;
         const value = target[key];
 
+        // If accessing a mutating array method, return a wrapped function
+        if (typeof value === "function" && ["push", "pop", "shift", "unshift", "splice", "sort", "reverse"].includes(prop as string)) {
+          return (...args: any[]) => {
+            const result = value.apply(target, args);
+            setTrigger((prev) => prev + 1); // Trigger a state update
+            return result;
+          };
+        }
+
         // Handle computed properties (getters)
         const descriptor = Object.getOwnPropertyDescriptor(target, key);
         if (descriptor && typeof descriptor.get === "function") {
