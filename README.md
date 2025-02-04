@@ -100,7 +100,7 @@ function InitComponent() {
 }
 ```
 
-### Using `useReactive` with Objects and Nested Properties
+### Using objects and nested properties
 
 ```tsx
 import { useReactive } from "@diginet/use-reactive";
@@ -127,13 +127,13 @@ function UserComponent() {
 }
 ```
 
-### Using `useReactive` with Effects
+### Using effect
 
 ```tsx
 import { useReactive } from "@diginet/use-reactive";
 import { useEffect } from "react";
 
-function TimerComponent() {
+unction TimerComponent() {
   const state = useReactive(
     {
       seconds: 0,
@@ -145,11 +145,14 @@ function TimerComponent() {
       return () => clearInterval(interval);
     }
   );
-  return <p>Elapsed Time: {state.seconds} seconds</p>;
+
+  return <>
+    <p>Elapsed Time: {state.seconds} seconds</p>
+  </>;
 }
 ```
 
-### Using `useReactive` with Arrays
+### Using arrays
 
 ```tsx
 import { useReactive } from "@diginet/use-reactive";
