@@ -105,7 +105,7 @@ export function useReactive<T extends object>(
 
   if (isDev) {
     syncState(stateRef.current, initialState);
-    console.log('hot reload');
+    //console.log('hot reload');
   }
 
   // Create a proxy for the state object if it doesn't exist
