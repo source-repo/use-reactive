@@ -33,7 +33,7 @@ function ExampleComponent() {
   return (
     <div>
       <p>Count: {state.count}</p>
-      <p>Double Count: {state.doubleCount}</p>
+      <p>Double Count: {state.doubleCount()}</p>
       <button onClick={state.increment}>Increment</button>
     </div>
   );
