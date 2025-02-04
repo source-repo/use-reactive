@@ -16,7 +16,7 @@ or
 yarn add @diginet/use-reactive
 ```
 
-## Usage
+## Basic Usage
 
 ```tsx
 import { useReactive } from "@diginet/use-reactive";
@@ -35,6 +35,85 @@ function ExampleComponent() {
       <p>Count: {state.count}</p>
       <p>Double Count: {state.doubleCount()}</p>
       <button onClick={state.increment}>Increment</button>
+    </div>
+  );
+}
+```
+
+## Advanced Examples
+
+### Using `useReactive` with Objects and Nested Properties
+
+```tsx
+import { useReactive } from "@diginet/use-reactive";
+
+function UserComponent() {
+  const user = useReactive({
+    name: "John",
+    age: 30,
+    address: useReactive({
+      city: "New York",
+      country: "USA",
+    }),
+    incrementAge() {
+      user.age++;
+    },
+  });
+
+  return (
+    <div>
+      <p>Name: {user.name}</p>
+      <p>Age: {user.age}</p>
+      <p>City: {user.address.city}</p>
+      <button onClick={user.incrementAge}>Increase Age</button>
+    </div>
+  );
+}
+```
+
+### Using `useReactive` with Effects
+
+```tsx
+import { useReactive } from "@diginet/use-reactive";
+import { useEffect } from "react";
+
+function TimerComponent() {
+  const state = useReactive({
+    seconds: 0,
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      state.seconds++;
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return <p>Elapsed Time: {state.seconds} seconds</p>;
+}
+```
+
+### Using `useReactive` with Arrays
+
+```tsx
+import { useReactive } from "@diginet/use-reactive";
+
+function TodoList() {
+  const state = useReactive({
+    todos: ["Learn React", "Master TypeScript"],
+    addTodo(todo: string) {
+      state.todos.push(todo);
+    },
+  });
+
+  return (
+    <div>
+      <ul>
+        {state.todos.map((todo, index) => (
+          <li key={index}>{todo}</li>
+        ))}
+      </ul>
+      <button onClick={() => state.addTodo("Use useReactive!")}>Add Todo</button>
     </div>
   );
 }
@@ -63,4 +142,3 @@ function ExampleComponent() {
 ## License
 
 MIT
-
