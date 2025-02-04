@@ -7,6 +7,12 @@ declare global {
       accept: () => void;
     };
   }
+  
+  interface ImportMeta {
+    env?: {
+      MODE?: string;
+    };
+  }
 }
 
 type ReactiveState<T> = T & { init?: () => void };
@@ -65,7 +71,7 @@ export function useReactive<T extends object>(
     return () => {
       if (cleanup) cleanup();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effect, ...deps]);
 
   /**
@@ -89,12 +95,19 @@ export function useReactive<T extends object>(
     });
   };
 
-  const isDev = process.env.NEXT_PUBLIC_ENV === "development";
+  const isDev =
+    (typeof process !== "undefined" && (
+      process.env?.NODE_ENV === "development" ||    // Webpack, general Node.js apps
+      process.env?.NEXT_PUBLIC_ENV === "development" || // Next.js
+      process.env?.VITE_ENV === "development" // Vite
+    )) ||
+    (typeof import.meta !== "undefined" && import.meta.env?.MODE === "development"); // Vite & other modern ESM-based bundlers
+
   if (isDev) {
     syncState(stateRef.current, initialState);
     console.log('hot reload');
   }
-  
+
   // Create a proxy for the state object if it doesn't exist
   if (!proxyRef.current) {
     proxyRef.current = new Proxy(stateRef.current, {
