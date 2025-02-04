@@ -2,7 +2,32 @@
 
 ## Description
 
-`useReactive` is a custom React hook that provides a reactive state object. It enables fine-grained reactivity with direct property access. Methods on the state object are bound allowing `this` to be used within the methods. Computed properties (getters) are also allowed. Changes to the state triggers re-render.
+`useReactive` is a custom React hook that provides a reactive state object with methods that can use `this`, allowing OOP-style encapsulation of data and methods while retaining Reacts functional programming with composition:
+
+```tsx
+const state = useReactive({
+	count: 0,
+	increment() {
+  		this.count++;
+	},
+});
+```
+
+Use directly in markup:
+
+
+```tsx
+<div>
+	<p>Count: { state.count }</p>
+	<button onClick={ state.increment }>Increment</button>
+</div>
+```
+
+`useReactive` enables fine-grained reactivity with direct property access. 
+
+Methods on the state object are bound allowing `this` to be used within the methods. 
+
+Computed properties (getters) are also allowed. Changes to the state triggers React re-render.
 
 ## Features
 
