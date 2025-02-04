@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/diginet/use-reactive.git"
+    "url": "https://github.com/source-repo/use-reactive.git"
   },
   "keywords": [
     "react",
