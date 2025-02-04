@@ -123,12 +123,6 @@ export function useReactive<T extends object>(
           return newValue;
         }
 
-        // Nested objects should also be reactive
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-          // eslint-disable-next-line react-hooks/rules-of-hooks
-          return useReactive(value as T);
-        }
-
         // Ensure functions are bound to the proxy object
         if (typeof value === "function") {
           return value.bind(proxyRef.current);
