@@ -105,7 +105,6 @@ export function useReactive<T extends object>(
 
     if (isDev) {
         syncState(stateRef.current, initialState);
-        //console.log('hot reload');
     }
 
     // Create a proxy for the state object if it doesn't exist
@@ -151,7 +150,6 @@ export function useReactive<T extends object>(
                 return value;
             },
             set(target, prop: string | symbol, value: unknown) {
-                console.log('useReactive: set target: ' + prop.toString() + ', value: ' + value);
                 const key = prop as keyof T;
                 if (target[key] === value) return true;
                 target[key] = value as T[keyof T];
