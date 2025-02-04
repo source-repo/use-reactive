@@ -115,13 +115,24 @@ export function useReactive<T extends object>(
         const key = prop as keyof T;
         const value = target[key];
 
-        // If accessing a mutating array method, return a wrapped function
-        if (typeof value === "function" && ["push", "pop", "shift", "unshift", "splice", "sort", "reverse"].includes(prop as string)) {
-          return (...args: any[]) => {
-            const result = value.apply(target, args);
-            setTrigger((prev) => prev + 1); // Trigger a state update
-            return result;
-          };
+        // Proxy arrays
+        if (Array.isArray(value)) {
+          return new Proxy(value, {
+            get(arrTarget, arrProp) {
+              const arrValue = arrTarget[arrProp as any];
+
+              // If accessing a mutating array method, return a wrapped function
+              if (typeof arrValue === "function" && ["push", "pop", "shift", "unshift", "splice", "sort", "reverse"].includes(arrProp as string)) {
+                return (...args: any[]) => {
+                  const result = arrValue.apply(arrTarget, args);
+                  setTrigger((prev) => prev + 1); // Trigger a state update
+                  return result;
+                };
+              }
+
+              return arrValue;
+            },
+          });
         }
 
         // Handle computed properties (getters)
