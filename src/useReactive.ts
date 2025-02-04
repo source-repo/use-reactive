@@ -53,7 +53,7 @@ export function useReactive<T extends object>(
         return () => {
             if (cleanup) cleanup();
         };
-    }, /*deps ? [...deps] :*/ []);
+    }, deps ? [...deps] : []);
 
     useEffect(() => {
         // Check for changes in computed properties (getters) and trigger a re-render if needed
@@ -72,7 +72,7 @@ export function useReactive<T extends object>(
         if (hasChanged) {
             setTrigger((prev) => prev + 1);
         }
-    }, []);
+    });
 
     /**
      * Synchronizes the existing state with a new state object.
