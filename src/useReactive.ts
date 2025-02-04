@@ -50,7 +50,12 @@ export function useReactive<T extends object>(
         if (effect) {
             cleanup = effect(stateRef.current);
         }
+        return () => {
+            if (cleanup) cleanup();
+        };
+    }, /*deps ? [...deps] :*/ []);
 
+    useEffect(() => {
         // Check for changes in computed properties (getters) and trigger a re-render if needed
         let hasChanged = false;
         getterCache.current.forEach((prevValue, key) => {
@@ -67,12 +72,7 @@ export function useReactive<T extends object>(
         if (hasChanged) {
             setTrigger((prev) => prev + 1);
         }
-
-        return () => {
-            if (cleanup) cleanup();
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, deps ? [...deps] : []);
+    }, []);
 
     /**
      * Synchronizes the existing state with a new state object.
