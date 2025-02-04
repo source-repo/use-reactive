@@ -40,6 +40,34 @@ function ExampleComponent() {
 }
 ```
 
+## Running a function once on creation
+
+Use an `init()` method on the reactive state object:
+
+```tsx
+import { useReactive } from "@diginet/use-reactive";
+
+function InitComponent() {
+  const state = useReactive({
+    count: 0,
+    increment() {
+      state.count++;
+    },
+    init() {
+      this.count = 123;
+      console.log('init called!');
+    },
+  });
+
+  return (
+    <div>
+      <p>Count: {state.count}</p>
+      <button onClick={state.increment}>Increment</button>
+    </div>
+  );
+}
+```
+
 ## Advanced Examples
 
 ### Using `useReactive` with Objects and Nested Properties
@@ -102,7 +130,7 @@ function TodoList() {
   const state = useReactive({
     todos: ["Learn React", "Master TypeScript"],
     addTodo(todo: string) {
-      state.todos.push(todo);
+      this.todos = [...this.todos, todo]; // ✅ Ensure new array reference for reactivity
     },
   });
 
