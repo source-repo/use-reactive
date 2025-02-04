@@ -47,8 +47,8 @@ export function useReactive<T extends object>(
     // useEffect to handle side effects and cleanup
     useEffect(() => {
         let cleanup: (() => void) | void;
-        if (effect) {
-            cleanup = effect(stateRef.current);
+        if (effect && proxyRef.current) {
+            cleanup = effect(proxyRef.current);
         }
         return () => {
             if (cleanup) cleanup();
