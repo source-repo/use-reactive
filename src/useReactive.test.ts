@@ -79,7 +79,7 @@ describe('useReactive with Arrays', () => {
       useReactive({
         todos: ['Learn React'],
         addTodo(todo: string) {
-          result.current.todos.push(todo);
+          this.todos = [...this.todos, todo]; // ✅ Ensure new array reference for reactivity
         },
       })
     );
@@ -88,5 +88,20 @@ describe('useReactive with Arrays', () => {
       result.current.addTodo('Master TypeScript');
     });
     expect(result.current.todos).toEqual(['Learn React', 'Master TypeScript']);
+  });
+});
+
+// Test for special `init` function
+describe('useReactive init function', () => {
+  it('should call init function on creation', () => {
+    const initMock = vi.fn();
+    const { result } = renderHook(() =>
+      useReactive({
+        count: 0,
+        init: initMock, // Special init function
+      })
+    );
+
+    expect(initMock).toHaveBeenCalled();
   });
 });
