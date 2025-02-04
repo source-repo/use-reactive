@@ -8,7 +8,8 @@
   "type": "module",
   "exports": {
     "import": "./dist/index.esm.js",
-    "require": "./dist/index.cjs.js"
+    "require": "./dist/index.cjs.js",
+    "types": "./dist/index.d.ts"
   },
   "scripts": {
     "build": "tsc && rollup -c",
