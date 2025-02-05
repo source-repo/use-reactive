@@ -41,9 +41,20 @@
   },
   "keywords": [
     "react",
-    "hook",
-    "state",
-    "reactive"
+    "react-hook",
+    "useReactive",
+    "reactivity",
+    "proxy-state",
+    "state-management",
+    "react-custom-hook",
+    "frontend",
+    "javascript",
+    "typescript",
+    "useState",
+    "useEffect",
+    "react-proxy",
+    "reactive-state",
+    "hooks"
   ],
   "author": "anderswestberg",
   "license": "MIT"
