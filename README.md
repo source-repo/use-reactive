@@ -6,7 +6,7 @@
 ```
 # useReactive
 
-`useReactive` is a custom React hook that provides a reactive state object with methods that can access this, enabling OOP-style encapsulation of data and behavior while maintaining React's functional programming approach through composition.
+`useReactive` is a custom React hook that provides a reactive state object with methods that can access `this`, enabling OOP-style encapsulation of data and behavior while maintaining React's functional programming approach through composition.
 
 ```tsx
 const state = useReactive({
