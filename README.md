@@ -6,7 +6,7 @@
 ```
 # useReactive
 
-`useReactive` is a custom React hook that provides a reactive state object with methods that can use `this`, allowing OOP-style encapsulation of data and methods while retaining Reacts functional programming with composition:
+`useReactive` is a custom React hook that provides a reactive state object with methods that can access this, enabling OOP-style encapsulation of data and behavior while maintaining React's functional programming approach through composition.
 
 ```tsx
 const state = useReactive({
@@ -32,13 +32,13 @@ Use directly in markup:
 
 `useReactive` features:
 
-- Fine-grained reactivity by simply using direct property access. 
-- Methods on the state object are bound, allowing `this` to be used within methods. 
-- A method named `init` on the state object will be run once only.
-- Computed properties (getters) are also allowed. 
-- Changes to the state triggers React re-render.
-- **async** methods can be used.
-- Add effect handling like `useEffect` with additional arguments.
+- Fine-grained reactivity through direct property access. 
+- Methods on the state object are automatically bound, allowing `this` to be used within them. 
+- A method named `init` on the state object runs only once.
+- Supports computed properties (getters). 
+- State changes trigger React re-render.
+- Supports **async** methods.
+- Add effect handling like `useEffect`, with additional arguments.
 
 ## Installation
 
