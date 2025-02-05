@@ -8,8 +8,6 @@ declare global {
     }
 }
 
-let _id = 0;
-
 type ReactiveState<T> = T & { init?: () => void };
 
 /**
@@ -53,7 +51,6 @@ export function useReactive<T extends object>(
         if (!stateMap) {
             stateMap = new Map<string | symbol, [any, React.Dispatch<React.SetStateAction<any>>]>();
             stateMapRef.current?.set(obj, stateMap);
-            (obj as any)._id = _id++;
         }
         Object.keys(obj).forEach((key) => {
             if (typeof obj[key as keyof T] !== "object" || Array.isArray(obj[key as keyof T])) {
