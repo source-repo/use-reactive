@@ -6,7 +6,7 @@
 ```
 # useReactive
 
-**NOTE: This is work in progress!**
+**NOTE: This is work in progress and there may be minor breaking changes in patch releases!**
 
 `useReactive` is a custom React hook that provides a reactive state object. Methods on the state object use `this` to access members, enabling OOP-style encapsulation of data and behavior.
 
