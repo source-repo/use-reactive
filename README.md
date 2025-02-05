@@ -193,7 +193,7 @@ function TodoList() {
   const state = useReactive({
     todos: ["Learn React", "Master TypeScript"],
     addTodo(todo: string) {
-      this.todos.push(todo);
+      this.todos = [...this.todos, todo];
     },
   });
 
