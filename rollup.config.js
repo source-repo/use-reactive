@@ -8,12 +8,14 @@ export default {
     {
       file: 'dist/index.esm.js',
       format: 'esm',
+      sourcemap: true,
     },
     {
       file: 'dist/index.cjs.js',
       format: 'cjs',
+      sourcemap: true,
     }
   ],
   plugins: [resolve(), commonjs(), typescript({ tsconfig: './tsconfig.json' })],
-  external: ['react']
+  external: ['react'],
 };
