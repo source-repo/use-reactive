@@ -38,6 +38,7 @@ Use directly in markup:
 - Supports computed properties (getters). 
 - State changes trigger React re-render.
 - Supports **async** methods.
+- Arbitrarily nested `useReactive` objects
 - Add effect handling like `useEffect`, with additional arguments.
 
 ## Installation
