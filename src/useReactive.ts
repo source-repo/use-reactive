@@ -90,7 +90,7 @@ export function useReactive<T extends object>(
             } else if (typeof newObj[key as keyof T] === "function") {
                 target[key as keyof T] = newObj[key as keyof T];
             } else if (typeof newObj[key as keyof T] === "object" && !Array.isArray(newObj[key as keyof T]) && newObj[key as keyof T] !== null) {
-                //syncState(target[key as keyof T] as ReactiveState<T>, newObj[key as keyof T] as ReactiveState<T>);
+                syncState(target[key as keyof T] as ReactiveState<T>, newObj[key as keyof T] as ReactiveState<T>);
             }
         });
     };
