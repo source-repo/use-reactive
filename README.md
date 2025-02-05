@@ -39,7 +39,7 @@ Use directly in markup:
 - Methods on the state object are automatically bound, allowing `this` to be used within them. 
 - A method named `init` on the state object runs only once.
 - Supports computed properties (getters). 
-- State changes trigger React re-render.
+- State changes trigger partial React re-render.
 - Supports **async** methods.
 - Arbitrarily nested state objects
 - Add effect handling like `useEffect`, with additional arguments.
