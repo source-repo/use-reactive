@@ -109,7 +109,7 @@ export function useReactive<T extends object>(
 
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
-        const foo = (target: ReactiveState<T>) => {
+        const createReactiveProxy = (target: ReactiveState<T>) => {
             return new Proxy(target, {
                 get(target, prop: string | symbol) {
                     const key = prop as keyof T;
@@ -145,7 +145,7 @@ export function useReactive<T extends object>(
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        return foo(value as ReactiveState<T>);
+                        return createReactiveProxy(value as ReactiveState<T>);
                     }
 
 
@@ -166,8 +166,8 @@ export function useReactive<T extends object>(
             });
 
         }
-        proxyRef.current = foo(stateRef.current);
-        
+        proxyRef.current = createReactiveProxy(stateRef.current);
+
         // If the object has an init method, call it after creation
         if ("init" in proxyRef.current && typeof proxyRef.current.init === "function") {
             proxyRef.current.init!();
