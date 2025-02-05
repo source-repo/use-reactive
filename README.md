@@ -10,13 +10,13 @@
 
 ```tsx
 const state = useReactive({
-	count: 0,
-	increment() {
-  		this.count++;
-	},
-    init() {
-        console.log('Only runs once!')
-    }
+  count: 0,
+  increment() {
+    this.count++;
+  },
+  init() {
+    console.log('Only runs once!')
+  }
 });
 ```
 
@@ -25,8 +25,8 @@ Use directly in markup:
 
 ```tsx
 <div>
-	<p>Count: { state.count }</p>
-	<button onClick={ state.increment }>Increment</button>
+  <p>Count: { state.count }</p>
+  <button onClick={ state.increment }>Increment</button>
 </div>
 ```
 
