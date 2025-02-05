@@ -109,60 +109,69 @@ export function useReactive<T extends object>(
 
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
-        proxyRef.current = new Proxy(stateRef.current, {
-            get(target, prop: string | symbol) {
-                const key = prop as keyof T;
-                const value = target[key];
+        const foo = (target: ReactiveState<T>) => {
+            return new Proxy(target, {
+                get(target, prop: string | symbol) {
+                    const key = prop as keyof T;
+                    const value = target[key];
 
-                // Proxy arrays
-                if (Array.isArray(value)) {
-                    return new Proxy(value, {
-                        get(arrTarget, arrProp) {
-                            const arrValue = arrTarget[arrProp as any];
+                    // Proxy arrays
+                    if (Array.isArray(value)) {
+                        return new Proxy(value, {
+                            get(arrTarget, arrProp) {
+                                const arrValue = arrTarget[arrProp as any];
 
-                            // If accessing a mutating array method, return a wrapped function
-                            if (typeof arrValue === "function" && ["push", "pop", "shift", "unshift", "splice", "sort", "reverse"].includes(arrProp as string)) {
-                                return (...args: any[]) => {
-                                    const result = arrValue.apply(arrTarget, args);
-                                    setTrigger((prev) => prev + 1); // Trigger a state update
-                                    return result;
-                                };
-                            }
+                                // If accessing a mutating array method, return a wrapped function
+                                if (typeof arrValue === "function" && ["push", "pop", "shift", "unshift", "splice", "sort", "reverse"].includes(arrProp as string)) {
+                                    return (...args: any[]) => {
+                                        const result = arrValue.apply(arrTarget, args);
+                                        setTrigger((prev) => prev + 1); // Trigger a state update
+                                        return result;
+                                    };
+                                }
 
-                            return arrValue;
-                        },
-                    });
-                }
+                                return arrValue;
+                            },
+                        });
+                    }
 
-                // Handle computed properties (getters)
-                const descriptor = Object.getOwnPropertyDescriptor(target, key);
-                if (descriptor && typeof descriptor.get === "function") {
-                    const newValue = descriptor.get.call(proxyRef.current);
-                    getterCache.current.set(key, newValue);
-                    return newValue;
-                }
+                    // Handle computed properties (getters)
+                    const descriptor = Object.getOwnPropertyDescriptor(target, key);
+                    if (descriptor && typeof descriptor.get === "function") {
+                        const newValue = descriptor.get.call(proxyRef.current);
+                        getterCache.current.set(key, newValue);
+                        return newValue;
+                    }
 
-                // Ensure functions are bound to the proxy object
-                if (typeof value === "function") {
-                    return value.bind(proxyRef.current);
-                }
+                    // Wrap nested objects in proxies
+                    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+                        return foo(value as ReactiveState<T>);
+                    }
 
-                return value;
-            },
-            set(target, prop: string | symbol, value: unknown) {
-                const key = prop as keyof T;
-                if (target[key] === value) return true;
-                target[key] = value as T[keyof T];
-                setTrigger((prev) => prev + 1);
-                return true;
-            },
-        });
 
+                    // Ensure functions are bound to the proxy object
+                    if (typeof value === "function") {
+                        return value.bind(proxyRef.current);
+                    }
+
+                    return value;
+                },
+                set(target, prop: string | symbol, value: unknown) {
+                    const key = prop as keyof T;
+                    if (target[key] === value) return true;
+                    target[key] = value as T[keyof T];
+                    setTrigger((prev) => prev + 1);
+                    return true;
+                },
+            });
+
+        }
+        proxyRef.current = foo(stateRef.current);
+        
         // If the object has an init method, call it after creation
         if ("init" in proxyRef.current && typeof proxyRef.current.init === "function") {
-            proxyRef.current.init();
+            proxyRef.current.init!();
         }
     }
-
     return proxyRef.current;
 }

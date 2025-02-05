@@ -38,7 +38,7 @@ Use directly in markup:
 - Supports computed properties (getters). 
 - State changes trigger React re-render.
 - Supports **async** methods.
-- Arbitrarily nested `useReactive` objects
+- Arbitrarily nested state objects
 - Add effect handling like `useEffect`, with additional arguments.
 
 ## Installation
@@ -138,10 +138,10 @@ function UserComponent() {
   const user = useReactive({
     name: "John",
     age: 30,
-    address: useReactive({
+    address: {
       city: "New York",
       country: "USA",
-    }),
+    },
     incrementAge() {
       this.age++;
     },
