@@ -1,17 +1,12 @@
+```asciiarmor
+               ___             _   _
+  _  _ ___ ___| _ \___ __ _ __| |_(_)_ _____ 
+ | || (_-</ -_)   / -_) _` / _|  _| \ V / -_)
+  \_,_/__/\___|_|_\___\__,_\__|\__|_|\_/\___|
+```
 # useReactive
 
-## Description
-
 `useReactive` is a custom React hook that provides a reactive state object with methods that can use `this`, allowing OOP-style encapsulation of data and methods while retaining Reacts functional programming with composition:
-
-```tsx
-const state = useReactive({
-	count: 0,
-	increment() {
-  		this.count++;
-	},
-});
-```
 
 Use directly in markup:
 
