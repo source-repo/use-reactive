@@ -36,10 +36,10 @@ describe('useReactive with Objects', () => {
   it('should allow updating nested properties', () => {
     const { result } = renderHook(() =>
       useReactive({
-        user: useReactive({
+        user: {
           name: 'John',
           age: 30,
-        }),
+        },
       })
     );
 
