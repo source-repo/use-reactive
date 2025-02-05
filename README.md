@@ -33,6 +33,7 @@ Use directly in markup:
 `useReactive` features:
 
 - Fine-grained reactivity through direct property access. 
+- **Intellisense** through generics when using TypeScript 
 - Methods on the state object are automatically bound, allowing `this` to be used within them. 
 - A method named `init` on the state object runs only once.
 - Supports computed properties (getters). 
