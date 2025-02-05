@@ -8,6 +8,18 @@
 
 `useReactive` is a custom React hook that provides a reactive state object with methods that can use `this`, allowing OOP-style encapsulation of data and methods while retaining Reacts functional programming with composition:
 
+```tsx
+const state = useReactive({
+	count: 0,
+	increment() {
+  		this.count++;
+	},
+    init() {
+        console.log('Only runs once!')
+    }
+});
+```
+
 Use directly in markup:
 
 
@@ -18,22 +30,18 @@ Use directly in markup:
 </div>
 ```
 
-`useReactive` enables fine-grained reactivity with direct property access. 
+`useReactive` features:
 
-Methods on the state object are bound allowing `this` to be used within the methods. 
-
-Computed properties (getters) are also allowed. Changes to the state triggers React re-render.
-
-## Features
-
-- Fine-grained reactivity without needing `useState`
-- Supports computed properties (getters)
-- Triggers re-renders when state properties update
-- Supports cleanup functions for side effects
-- Uses a Proxy to intercept access to the state object
-- Supports hot module reloading (HMR), retaining state while adding or deleting methods on the Proxy object
+- Fine-grained reactivity by simply using direct property access. 
+- Methods on the state object are bound, allowing `this` to be used within methods. 
+- A method named `init` on the state object will be run once only.
+- Computed properties (getters) are also allowed. 
+- Changes to the state triggers React re-render.
+- **async** methods can be used.
+- Add effect handling like `useEffect` with additional arguments.
 
 ## Installation
+
 
 ```sh
 npm install @diginet/use-reactive
