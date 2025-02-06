@@ -83,7 +83,19 @@ Note: The function `increment` above can be declared without the `function` keyw
 
 ## API
 
-`useReactive<T>(state: T, effect?: (state: T) => (() => void) | void, ...deps: unknown[]): T`
+###### JavaScript (TL;DR)
+
+`useReactive(state, effectOrEffects, ...deps)`
+
+- `state`: The state object with properties and methods bound to `this`.
+- `effectOrEffects`: Effect function OR array of function and dependency pairs. State is supplied as argument (also `this`).
+- `deps`: Array of dependencies for a single effect function.
+
+###### TypeScript
+
+`useReactive<T>(state: T, effectOrEffects?: EffectFunction<T> | Array<[EffectFunction<T>, unknown[]]>, ...deps: unknown[]): T`
+
+where `type EffectFunction<T> = (this: T, state: T) => void | (() => void);`
 
 #### Parameters:
 
@@ -96,7 +108,7 @@ Note: The function `increment` above can be declared without the `function` keyw
       - Reactive by replacing with a new array or using `push`, `pop`, `shift`, `unshift`, `splice`, `sort` and `reverse` in-place array methods
     - [async] `<`method`>`:  Any function. The `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
     - `init(state)`: Special method that runs once. Do not use an arrow function as this will make `this` refer to the global scope.
-- `effect?`: Side effect(s) that can run when a dependency changes. State is supplied as argument to the function.  Must be declared with the `function` keyword. Do not use an arrow function as this will make `this` refer to the global scope. Return a cleanup function if needed.
+- `effectOrEffects?`: Side effect(s) that can run when a dependency changes. State is supplied as argument to the function.  Must be declared with the `function` keyword. Do not use an arrow function as this will make `this` refer to the global scope. Return a cleanup function if needed.
   - Optionally this can be an array of effect and dependency pairs: [ [`function foo1 {}`, [`dep1`] ], [`function foo2 {}`, [`dep2`] ] ]
 
 - `deps?`: Dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function.
