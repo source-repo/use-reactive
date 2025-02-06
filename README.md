@@ -77,6 +77,8 @@ function ExampleComponent() {
 }
 ```
 
+Note: The function `increment` above can be declared without the `function` keyword using object shorthand syntax.
+
 ## API
 
 `useReactive<T>(initialState: T, effect?: (state: T) => (() => void) | void, ...deps: unknown[]): T`
@@ -88,31 +90,24 @@ function ExampleComponent() {
     - Simple data types
     - objects
       - Create with useReactive to make child objects reactive, see example below.
-
     - arrays
       - Reactive by replacing with a new array or using `push`, `pop`, `shift`, `unshift`, `splice`, `sort` and `reverse` in-place array methods
+    - [async] `<`method`>`:  Any function. The `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
+    - `init(state)`: Special method that runs once. Do not use an arrow function as this will make `this` refer to the global scope.
+- `effect?`: Side effect(s) that can run when a dependency changes. State is supplied as argument to the function.  Must be declared with the `function` keyword. Do not use an arrow function as this will make `this` refer to the global scope.
+  - Optionally this can be an array of effect and dependency pairs: [ [`function foo1 {}`, [`dep1`] ], [`function foo2 {}`, [`dep2`] ] ]
 
-    - `init`: Special method that runs once
-
-- `effect?`: A function that runs side effects when dependencies change. State is supplied as argument.
-- `deps?`: Dependency array to control when the effect re-runs. Defaults to `[]` (run once).
+- `deps?`: Dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function.
 
 #### Returns:
 
 - A proxy-wrapped state object that updates reactively when its properties change.
 
-## License
-
-MIT
-
 ## Examples
 
-### Running a function once on creation
-
-Use an `init()` method on the reactive state object:
-
 ```tsx
-import { useReactive } from "@diginet/use-reactive";
+import * as React from "react";
+import { useReactive } from "./useReactive.js";
 
 function InitComponent() {
   const state = useReactive({
@@ -130,12 +125,8 @@ function InitComponent() {
       <button onClick={state.increment}>Increment</button>
     </div>;
 }
-```
 
-### Using objects and nested properties
-
-```tsx
-import { useReactive } from "@diginet/use-reactive";
+// Using objects and nested properties
 
 function UserComponent() {
   const user = useReactive({
@@ -157,20 +148,20 @@ function UserComponent() {
       <button onClick={() => { user.address.city = 'Los Angeles' }}>Change city</button>
     </div>;
 }
-```
 
-### Using effect
+// Using effect
+// Note: The effect function must be declared with the `function` 
+//   keyword (shorthand notation is only allowed in objects). Do not
+//   use `arrow` syntax as this will make this refer to the global scope.
 
-```tsx
-import { useReactive } from "@diginet/use-reactive";
-import { useEffect } from "react";
-
-unction TimerComponent() {
+function TimerComponent() {
   const state = useReactive(
     {
       seconds: 0,
+      called: false,
     },
-    (state) => {
+    function (state) {
+      this.called = true;
       const interval = setInterval(() => {
         state.seconds++;
       }, 1000);
@@ -182,12 +173,8 @@ unction TimerComponent() {
     <p>Elapsed Time: {state.seconds} seconds</p>
   </>;
 }
-```
 
-### Using arrays
-
-```tsx
-import { useReactive } from "@diginet/use-reactive";
+// Using arrays
 
 function TodoList() {
   const state = useReactive({
@@ -208,5 +195,35 @@ function TodoList() {
     </div>
   );
 }
+
+export function Examples() {
+    return <div>
+        <h1>Examples</h1>
+        <InitComponent />
+        <UserComponent />
+        <TimerComponent />
+        <TodoList />
+    </div>;
+}
 ```
+
+## Contributions
+
+Are welcome, create a pull request.
+
+Add tests for new functionality.
+
+Debugging tests with breakpoints can be done from Visual Studio Codes JavaScript console with:
+
+`npm test`
+
+or
+
+```bash
+npx vitest --inspect --run --no-file-parallelism --testTimeout=3600000
+```
+
+## License
+
+MIT
 
