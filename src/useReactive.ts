@@ -1,10 +1,8 @@
-import { useState, useRef, useEffect, useReducer } from "react";
+import { useState, useRef, useEffect } from "react";
 
 declare global {
     interface ImportMeta {
-        env?: {
-            MODE?: string;
-        };
+        readonly env: ImportMetaEnv;
     }
 }
 
@@ -14,11 +12,11 @@ type EffectFunction<T> = (this: T, state: T) => void | (() => void);
 
 // Map structure for storing state and setState hooks for each property
 //   key: Property key
-//   value: [state, setState, updateFlag, childMap]
+//   value: [state, setState, updateFlag, childMap, propValue]
 //
 // The updateFlag is used to track changes in the property value done via the proxy (as opposed to from props).
 //
-type UseStateMap = Map<string | number | symbol, [any, React.Dispatch<React.SetStateAction<any>> | undefined, boolean, UseStateMap | undefined]>;
+type UseStateMap = Map<string | number | symbol, [any, React.Dispatch<React.SetStateAction<any>> | undefined, boolean, UseStateMap | undefined, any]>;
 
 /**
  * useReactive - A custom React hook that creates a reactive state object.
@@ -57,16 +55,26 @@ export function useReactive<T extends object>(
             if (typeof obj[key] !== "object" || Array.isArray(obj[key])) {
                 if (typeof obj[key] === "function") return;
                 const [state, setState] = useState(obj[key]);
-                const [,, savedFlag] = stateMap.get(key) || [undefined, undefined, false];
-                if (!savedFlag && newObj && newObj[key] !== state) {
-                    setState(newObj[key]);
+                const [, , modifiedFlag, , lastPropValue] = stateMap.get(key) || [undefined, undefined, false];
+                let propValue = newObj ? newObj[key] : state;
+
+                function isEqual(x: any, y: any): boolean {
+                    const ok = Object.keys, tx = typeof x, ty = typeof y;
+                    return x && y && tx === 'object' && tx === ty ? (
+                        ok(x).length === ok(y).length &&
+                        ok(x).every(key => isEqual(x[key], y[key]))
+                    ) : (x === y);
                 }
-                stateMap.set(key, [state, setState, savedFlag, undefined]);
+                const propValueChanged = !isEqual(lastPropValue, propValue);
+                if ((!modifiedFlag || propValueChanged) && newObj && newObj[key] !== state) {
+                    setState(propValue);
+                }
+                stateMap.set(key, [state, setState, modifiedFlag, undefined, propValue]);
             } else {
                 let childStateMap: UseStateMap | undefined;
                 if (!stateMap.has(key)) {
                     childStateMap = new Map();
-                    stateMap.set(key, [undefined, undefined, false, childStateMap]);
+                    stateMap.set(key, [undefined, undefined, false, childStateMap, obj[key]]);
                 } else {
                     childStateMap = stateMap.get(key)![3];
                 }
@@ -79,7 +87,7 @@ export function useReactive<T extends object>(
         stateMapRef.current = new WeakMap()
         const map = new Map();
         stateMapRef.current.set(reactiveStateRef.current, map);
-        initializeState(reactiveStateRef.current, map);
+        initializeState(reactiveStateRef.current, map, reactiveState);
     } else {
         initializeState(reactiveStateRef.current, stateMapRef.current.get(reactiveStateRef.current)!, reactiveState);
     }
@@ -128,12 +136,12 @@ export function useReactive<T extends object>(
                     const key = prop as keyof T;
                     const stateMap = stateMapRef.current?.get(obj);
                     let value: any
-                    const [savedValue, setValue, proxyUpdateFlag, map] = stateMap?.has(prop as keyof T) ? stateMap.get(prop as keyof T)! : [obj[key]];
+                    const [savedValue, , , map] = stateMap?.has(prop as keyof T) ? stateMap.get(prop as keyof T)! : [obj[key]];
                     if (!map) {
                         value = savedValue;
                     } else {
                         value = obj[key];
-                    }   
+                    }
 
                     // Proxy arrays         
                     /*         
@@ -192,9 +200,9 @@ export function useReactive<T extends object>(
                 set(obj, prop: string | symbol, value) {
                     const stateMap = stateMapRef.current?.get(obj);
                     if (!stateMap?.has(prop as keyof T)) return false;
-                    const [state, setState,, map] = stateMap.get(prop as keyof T)!;
+                    const [state, setState, , map, propValue] = stateMap.get(prop as keyof T)!;
                     if (state !== value) {
-                        stateMap.set(prop as keyof T, [value, setState, true, map]);
+                        stateMap.set(prop as keyof T, [value, setState, true, map, propValue]);
                         if (setState) {
                             setState(value);
                         }
