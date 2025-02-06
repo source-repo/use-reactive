@@ -78,7 +78,7 @@ describe('useReactive with Arrays', () => {
       useReactive({
         todos: ['Learn React'],
         addTodo(todo: string) {
-          this.todos = [...this.todos, todo]; // ✅ Ensure new array reference for reactivity
+          this.todos = [...this.todos, todo]; // Ensure new array reference for reactivity
         },
       })
     );
