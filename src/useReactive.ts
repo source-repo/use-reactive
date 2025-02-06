@@ -10,6 +10,16 @@ declare global {
 
 type ReactiveState<T> = T & { init?: () => void };
 
+type EffectFunction<T> = (this: T, state: T) => void | (() => void);
+
+// Map structure for storing state and setState hooks for each property
+//   key: Property key
+//   value: [state, setState, updateFlag, childMap]
+//
+// The updateFlag is used to track changes in the property value done via the proxy (as opposed to from props).
+//
+type UseStateMap = Map<string | number | symbol, [any, React.Dispatch<React.SetStateAction<any>> | undefined, boolean, UseStateMap | undefined]>;
+
 /**
  * useReactive - A custom React hook that creates a reactive state object.
  * 
@@ -17,89 +27,66 @@ type ReactiveState<T> = T & { init?: () => void };
  * when properties change. It also supports computed properties (getters),
  * hot module reloading (HMR) synchronization, and optional side effects.
  * 
- * @param initial - The initial state object.
+ * @param reactiveState - The initial state object.
  * @param effect - Optional effect function that runs when dependencies change.
  * @param deps - Dependencies array for triggering reactivity updates.
  * @returns A reactive proxy of the state object.
  */
 export function useReactive<T extends object>(
-    initial: T,
-    effect?: (state: T) => (() => void) | void,
-    ...deps: unknown[]
+    reactiveState: T,
+    effect?: EffectFunction<T> | Array<[EffectFunction<T>, unknown[]]>,
+    deps?: unknown[]
 ): T {
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
     }
     console.log("useReactive called");
 
+    const reactiveStateRef = useRef(reactiveState);
     const [, setTrigger] = useState(0); // State updater to trigger re-renders
-    const initialState: ReactiveState<T> = initial;
-    const updateFunctions = useRef(new Map<string | symbol, () => void>());
-    const stateRef = useRef<ReactiveState<T>>(initialState);
     const proxyRef = useRef<T>(null);
     const getterCache = useRef<Map<keyof T, T[keyof T]>>(new Map()); // Cache for computed property values
     const proxyCache = new WeakMap<object, any>();
     const boundFunctions = new WeakMap<Function, Function>();
-    const stateMapRef = useRef<WeakMap<object, Map<string | symbol, [() => any, React.Dispatch<React.SetStateAction<any>>]>>>(null);
-
-    if (!stateMapRef.current)
-        stateMapRef.current = new WeakMap<object, Map<string | symbol, [any, React.Dispatch<React.SetStateAction<any>>]>>()
+    const stateMapRef = useRef<WeakMap<object, UseStateMap>>(null);
 
     // Recursively creates a structure of useState hooks for each property.
-    const initializeState = <T extends object>(obj: T): void => {
-        let stateMap = stateMapRef.current?.get(obj);
-        if (!stateMap) {
-            stateMap = new Map<string | symbol, [any, React.Dispatch<React.SetStateAction<any>>]>();
-            stateMapRef.current?.set(obj, stateMap);
-        }
-        Object.keys(obj).forEach((key) => {
-            if (typeof obj[key as keyof T] !== "object" || Array.isArray(obj[key as keyof T])) {
-                if (typeof obj[key as keyof T] === "function") return;
-                if (!stateMap.has(key)) {
-                    const [state, setState] = useState(obj[key as keyof T]);
-                    stateMap.set(key, [() => state, setState]);
+    const initializeState = <T extends object>(obj: T, stateMap: UseStateMap, newObj?: T): void => {
+        Object.keys(obj).forEach((keyAny) => {
+            const key = keyAny as keyof T
+            if (typeof obj[key] !== "object" || Array.isArray(obj[key])) {
+                if (typeof obj[key] === "function") return;
+                const [state, setState] = useState(obj[key]);
+                const [,, savedFlag] = stateMap.get(key) || [undefined, undefined, false];
+                if (!savedFlag && newObj && newObj[key] !== state) {
+                    setState(newObj[key]);
                 }
+                stateMap.set(key, [state, setState, savedFlag, undefined]);
             } else {
-                initializeState(obj[key as keyof T] as T);
+                let childStateMap: UseStateMap | undefined;
+                if (!stateMap.has(key)) {
+                    childStateMap = new Map();
+                    stateMap.set(key, [undefined, undefined, false, childStateMap]);
+                } else {
+                    childStateMap = stateMap.get(key)![3];
+                }
+                stateMapRef.current?.set(obj[key] as T, childStateMap!);
+                initializeState(obj[key] as T, childStateMap!, newObj ? newObj[key] as T : undefined);
             }
         });
     };
-
-    initializeState(initial); // Ensure state is only initialized once
-
-    // useEffect to handle side effects and cleanup
-    useEffect(() => {
-        let cleanup: (() => void) | void;
-        if (effect && proxyRef.current) {
-            cleanup = effect(proxyRef.current);
-        }
-        return () => {
-            if (cleanup) cleanup();
-        };
-    }, deps ? [...deps] : []);
-
-    useEffect(() => {
-        // Check for changes in computed properties (getters) and trigger a re-render if needed
-        let hasChanged = false;
-        getterCache.current.forEach((prevValue, key) => {
-            const descriptor = Object.getOwnPropertyDescriptor(stateRef.current, key);
-            if (descriptor && typeof descriptor.get === "function") {
-                const newValue = descriptor.get.call(proxyRef.current);
-                if (prevValue !== newValue) {
-                    hasChanged = true;
-                    getterCache.current.set(key, newValue);
-                }
-            }
-        });
-
-        if (hasChanged) {
-            setTrigger((prev) => prev + 1);
-        }
-    });
+    if (!stateMapRef.current) {
+        stateMapRef.current = new WeakMap()
+        const map = new Map();
+        stateMapRef.current.set(reactiveStateRef.current, map);
+        initializeState(reactiveStateRef.current, map);
+    } else {
+        initializeState(reactiveStateRef.current, stateMapRef.current.get(reactiveStateRef.current)!, reactiveState);
+    }
 
     /**
-     * Synchronizes the existing state with a new state object.
-     * This is mainly used for maintaining state consistency during hot reloads.
+     * HMR synchronizs the existing state with a new state object.
+     * This is used to add and remove functions during hot reloads.
      */
     const syncState = (target: ReactiveState<T>, newObj: ReactiveState<T>) => {
         Object.keys(target).forEach((key) => {
@@ -107,13 +94,12 @@ export function useReactive<T extends object>(
                 delete target[key as keyof T];
             }
         });
-        Object.keys(newObj).forEach((key) => {
-            if (!(key in target)) {
-                target[key as keyof T] = newObj[key as keyof T];
-            } else if (typeof newObj[key as keyof T] === "function") {
-                target[key as keyof T] = newObj[key as keyof T];
-            } else if (typeof newObj[key as keyof T] === "object" && !Array.isArray(newObj[key as keyof T]) && newObj[key as keyof T] !== null) {
-                syncState(target[key as keyof T] as ReactiveState<T>, newObj[key as keyof T] as ReactiveState<T>);
+        Object.keys(newObj).forEach((keyAny) => {
+            const key = keyAny as keyof T
+            if (typeof newObj[key] === "function") {
+                target[key] = newObj[key];
+            } else if (typeof newObj[key] === "object" && !Array.isArray(newObj[key]) && newObj[key] !== null) {
+                syncState(target[key] as ReactiveState<T>, newObj[key] as ReactiveState<T>);
             }
         });
     };
@@ -127,7 +113,7 @@ export function useReactive<T extends object>(
         (typeof import.meta !== "undefined" && import.meta.env?.MODE === "development"); // Vite & other modern ESM-based bundlers
 
     if (isDev) {
-        syncState(stateRef.current, initialState);
+        syncState(reactiveStateRef.current, reactiveState);
     }
 
     // Create a proxy for the state object if it doesn't exist
@@ -141,8 +127,13 @@ export function useReactive<T extends object>(
                 get(obj, prop: string | symbol) {
                     const key = prop as keyof T;
                     const stateMap = stateMapRef.current?.get(obj);
-                    const [valueF, setState] = stateMap?.has(prop) ? stateMap.get(prop)! : [() => obj[key]];
-                    const value = valueF();
+                    let value: any
+                    const [savedValue, setValue, proxyUpdateFlag, map] = stateMap?.has(prop as keyof T) ? stateMap.get(prop as keyof T)! : [obj[key]];
+                    if (!map) {
+                        value = savedValue;
+                    } else {
+                        value = obj[key];
+                    }   
 
                     // Proxy arrays         
                     /*         
@@ -200,11 +191,13 @@ export function useReactive<T extends object>(
                 },
                 set(obj, prop: string | symbol, value) {
                     const stateMap = stateMapRef.current?.get(obj);
-                    if (!stateMap?.has(prop)) return false;
-                    const [state, setState] = stateMap.get(prop)!;
-                    if (state() !== value) {
-                        stateMap.set(prop, [() => value, setState]);
-                        setState(value);
+                    if (!stateMap?.has(prop as keyof T)) return false;
+                    const [state, setState,, map] = stateMap.get(prop as keyof T)!;
+                    if (state !== value) {
+                        stateMap.set(prop as keyof T, [value, setState, true, map]);
+                        if (setState) {
+                            setState(value);
+                        }
                     }
                     return true;
                 },
@@ -212,12 +205,61 @@ export function useReactive<T extends object>(
             proxyCache.set(target, proxy);
             return proxy;
         }
-        proxyRef.current = createReactiveProxy(stateRef.current);
+        proxyRef.current = createReactiveProxy(reactiveStateRef.current);
 
         // If the object has an init method, call it after creation
         if ("init" in proxyRef.current && typeof proxyRef.current.init === "function") {
             proxyRef.current.init!();
         }
     }
+
+    // useEffect to handle side effects and cleanup
+    if (effect) {
+        if (typeof effect === "function") {
+            // Single effect function
+            useEffect(() => {
+                let cleanup: (() => void) | void;
+                if (effect && proxyRef.current) {
+                    cleanup = effect.apply(proxyRef.current, [proxyRef.current]);
+                }
+                return () => {
+                    if (cleanup) cleanup();
+                };
+            }, deps);
+        } else if (Array.isArray(effect)) {
+            // Multiple effect/dependency pairs
+            effect.forEach(([effectF, effectDeps]) => {
+                useEffect(() => {
+                    let cleanup: (() => void) | void;
+                    if (effectF && proxyRef.current) {
+                        cleanup = effectF.apply(proxyRef.current, [proxyRef.current]);
+                    }
+                    return () => {
+                        if (cleanup) cleanup();
+                    };
+                }, effectDeps);
+            });
+        }
+    }
+
+    useEffect(() => {
+        // Check for changes in computed properties (getters) and trigger a re-render if needed
+        let hasChanged = false;
+        getterCache.current.forEach((prevValue, key) => {
+            const descriptor = Object.getOwnPropertyDescriptor(reactiveStateRef, key);
+            if (descriptor && typeof descriptor.get === "function") {
+                const newValue = descriptor.get.call(proxyRef.current);
+                if (prevValue !== newValue) {
+                    hasChanged = true;
+                    getterCache.current.set(key, newValue);
+                }
+            }
+        });
+
+        if (hasChanged) {
+            setTrigger((prev) => prev + 1);
+        }
+    });
+
     return proxyRef.current;
 }
