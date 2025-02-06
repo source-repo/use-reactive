@@ -42,6 +42,10 @@ Use directly in markup:
 - Arbitrarily nested state objects
 - Add effect handling like `useEffect`, with additional arguments.
 
+## Live preview
+
+https://stackblitz.com/edit/vitejs-vite-mcpb2gpf?file=src%2FApp.tsx
+
 ## Installation
 
 
