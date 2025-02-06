@@ -1,96 +1,188 @@
-import * as React from "react";
-import { useReactive } from "./useReactive.js";
+import React from "react";
+import { useReactive } from "./useReactive";
 
-function InitComponent() {
-  const state = useReactive({
-    count: 0,
-    increment() {
-      this.count++;
-    },
-    init() {
-      this.count = 123;
-      console.log('init called!');
-    },
-  });
-  return <div>
-      <p>Count: {state.count}</p>
-      <button onClick={state.increment}>Increment</button>
-    </div>;
+// Example 1: Simple Counter
+const Counter = () => {
+    const state = useReactive({ count: 0 });
+
+    return (
+        <div>
+            <h3>Counter</h3>
+            <p>Count: {state.count}</p>
+            <button onClick={() => state.count++}>Increment</button>
+            <button onClick={() => state.count--}>Decrement</button>
+        </div>
+    );
+};
+
+// Example 2: Computed Property
+const ComputedPropertyExample = () => {
+    const state = useReactive({
+        count: 2,
+        get double() {
+            return this.count * 2;
+        },
+    });
+
+    return (
+        <div>
+            _________________________________
+            <h3>Computed Property</h3>
+            <p>Count: {state.count}</p>
+            <p>Double: {state.double}</p>
+            <button onClick={() => state.count++}>Increment</button>
+        </div>
+    );
+};
+
+// Example 3: Async State Update
+const AsyncExample = () => {
+    const state = useReactive({
+        count: 0,
+        async incrementAsync() {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            this.count++;
+        },
+    });
+
+    return (
+        <div>
+            _________________________________
+            <h3>Async Update</h3>
+            <p>Count: {state.count}</p>
+            <button onClick={() => state.incrementAsync()}>Increment Async</button>
+        </div>
+    );
+};
+
+// Example 4: Nested State
+const NestedStateExample = () => {
+    const state = useReactive({
+        nested: { value: 10 },
+    });
+
+    return (
+        <div>
+            _________________________________
+            <h3>Nested State</h3>
+            <p>Nested Value: {state.nested.value}</p>
+            <button onClick={() => state.nested.value++}>Increment Nested</button>
+        </div>
+    );
+};
+
+// Example 5: Single Effect
+const SingleEffectExample = () => {
+    const state = useReactive(
+        { count: 0 },
+        function () {
+            console.log("Count changed:", this.count);
+        },
+    );
+
+    return (
+        <div>
+            _________________________________
+            <h3>Single Effect</h3>
+            <p>Count: {state.count}</p>
+            <button onClick={() => state.count++}>Increment</button>
+        </div>
+    );
+};
+
+// Example 6: Multiple Effects
+const MultipleEffectsExample = () => {
+    const state = useReactive(
+        { count: 0, text: "Hello" },
+        [
+            [function () { console.log("Count changed:", this.count); }, []],
+            [function () { console.log("Text changed:", this.text); }, []],
+        ]
+    );
+
+    return (
+        <div>
+            _________________________________
+            <h3>Multiple Effects</h3>
+            <p>Count: {state.count}</p>
+            <p>Text: {state.text}</p>
+            <button onClick={() => state.count++}>Increment Count</button>
+            <button onClick={() => (state.text = "World")}>Change Text</button>
+        </div>
+    );
+};
+
+// Generic Button Component
+interface ControlButtonsProps {
+    onIncrement: () => void;
+    onDecrement?: () => void;
+    incrementLabel: string;
+    decrementLabel?: string;
 }
 
-// Using objects and nested properties
+const ControlButtons: React.FC<ControlButtonsProps> = ({ onIncrement, onDecrement, incrementLabel, decrementLabel }) => (
+  <div>
+      <button onClick={onIncrement}>{incrementLabel}</button>
+      {onDecrement && <button onClick={onDecrement}>{decrementLabel}</button>}
+  </div>
+);
 
-function UserComponent() {
-  const user = useReactive({
-    name: "John",
-    age: 30,
-    address: {
-      city: "New York",
-      country: "USA",
-    },
-    incrementAge() {
-      this.age++;
-    },
-  });
-  return <div>
-      <p>Name: {user.name}</p>
-      <p>Age: {user.age}</p>
-      <p>City: {user.address.city}</p>
-      <button onClick={user.incrementAge}>Increase Age</button>
-      <button onClick={() => { user.address.city = 'Los Angeles' }}>Change city</button>
-    </div>;
+// Child component with useReactive using props
+interface ReactiveChildProps {
+    initialCount: number;
 }
 
-// Using effect
-
-function TimerComponent() {
+const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
   const state = useReactive(
-    {
-      seconds: 0,
-      called: false,
-    },
-    function (state) {
-      this.called = true;
-      const interval = setInterval(() => {
-        state.seconds++;
-      }, 1000);
-      return () => clearInterval(interval);
-    }
+      { count: initialCount },
+      function () {
+          console.log("Count changed due to prop update:", this.count);
+      },
+      ["count"]
   );
-
-  return <>
-    <p>Elapsed Time: {state.seconds} seconds</p>
-  </>;
-}
-
-// Using arrays
-
-function TodoList() {
-  const state = useReactive({
-    todos: ["Learn React", "Master TypeScript"],
-    addTodo(todo: string) {
-      this.todos = [...this.todos, todo];
-    },
-  });
 
   return (
-    <div>
-      <ul>
-        {state.todos.map((todo, index) => (
-          <li key={index}>{todo}</li>
-        ))}
-      </ul>
-      <button onClick={() => state.addTodo("Use useReactive!")}>Add Todo</button>
-    </div>
+      <div>
+            <h3>Reactive Child</h3>
+          <p>Count: {state.count}</p>
+          <ControlButtons 
+              onIncrement={() => state.count++} 
+              incrementLabel="Increment" 
+          />
+      </div>
   );
-}
+};
 
-export function Examples() {
-    return <div>
-        <h2>Examples</h2>
-        <InitComponent />
-        <UserComponent />
-        <TimerComponent />
-        <TodoList />
-    </div>;
-}
+// Example using ReactiveChild to test prop dependency
+const EffectDependencyExample = () => {
+  const state = useReactive({ count: 0 });
+  
+  return (
+      <div>
+            _________________________________
+            <h3>Effect Dependency Example</h3>
+          <p>Parent Count: {state.count}</p>
+          <ControlButtons 
+              onIncrement={() => state.count++} 
+              incrementLabel="Increment Parent" 
+          />
+          <ReactiveChild initialCount={state.count} />
+      </div>
+  );
+};
+
+// Super Component to Include All Examples
+export const Examples = () => {
+    return (
+        <div>
+            <h2>useReactive Examples</h2>
+            <Counter />
+            <ComputedPropertyExample />
+            <AsyncExample />
+            <NestedStateExample />
+            <SingleEffectExample />
+            <MultipleEffectsExample />
+            <EffectDependencyExample />
+        </div>
+    );
+};
