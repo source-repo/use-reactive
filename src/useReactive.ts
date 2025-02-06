@@ -12,12 +12,13 @@ type ReactiveState<T> = T & { init?: () => void };
 
 type EffectFunction<T> = (this: T, state: T) => void | (() => void);
 
-// Map structure for storing state and setState hooks for each property
-//   key: Property key
-//   value: [state, setState, updateFlag, childMap, propValue]
-//
-// The updateFlag is used to track changes in the property value done via the proxy (as opposed to from props).
-//
+/**
+ * Map structure for storing state and setState hooks for each property
+ * key: Property key
+ * value: [state, setState, updateFlag, childMap, propValue]
+ * 
+ * The updateFlag is used to track changes in the property value done via the proxy (as opposed to from props).
+ */
 type UseStateMap = Map<string | number | symbol, [any, React.Dispatch<React.SetStateAction<any>> | undefined, boolean, UseStateMap | undefined, any]>;
 
 /**
