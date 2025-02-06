@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 
 declare global {
     interface ImportMeta {
-        readonly env: ImportMetaEnv;
+        readonly env?: {
+            MODE?: string;
+        };
     }
 }
 
