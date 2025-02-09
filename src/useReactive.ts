@@ -131,7 +131,7 @@ export function useReactive<T extends object>(
                                             const stateMap = stateMapRef.current?.get(obj);
                                             if (!stateMap?.has(prop as keyof T)) return false;
                                             const [, map, propValue] = stateMap.get(prop as keyof T)!;
-                                            if (!isEqual(obj[prop as keyof T],arrTarget)) {
+                                            if (!isEqual(prevValue, arrTarget)) {
                                                 stateMap.set(prop as keyof T, [true, map, propValue]);
                                                 obj[prop as keyof T] = arrTarget as any;
                                                 setTrigger((prev) => prev + 1);
