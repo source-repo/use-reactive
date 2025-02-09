@@ -346,18 +346,25 @@ describe("createReactiveStore", () => {
   });
   it("should trigger a callback from init function when a given property updates", () => {
     const effectMock = vi.fn();
+    let unsubscribe: () => void;
     const { result, rerender } = renderHook(() => useReactive(
       { count: 0 
 
       },
       function (state, subscribe) {
-        subscribe(() => [this.count], () => effectMock(1));
+        unsubscribe = subscribe(() => [this.count], () => effectMock(this.count));
       }
     ));
     act(() => {      
       result.current[0].count++;
     });
     expect(result.current[0].count).toBe(1);
+    expect(effectMock).toHaveBeenCalledWith(1);
+    act(() => {      
+      unsubscribe();
+      result.current[0].count++;
+    });
+    expect(result.current[0].count).toBe(2);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
 });

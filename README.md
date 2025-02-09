@@ -132,9 +132,11 @@ T is the state object, S is a subscribe function and E is an effect function, li
 
 - A tuple:
   - `[0]`: The state object wrapped by a Proxy that updates the React state reactively when its properties change.
-  - `[1]`: A function for subscribing to property changes. Arguments:
-    - `targets`: A function returning a state property or an array of state properties to subscribe to.
-    - `callback`: A callback function `(this: T, key: keyof T, value: unknown, previous: unknown)`
+  - `[1]`: A function for subscribing to property changes. 
+    - Arguments:
+      - `targets`: A function returning a state property or an array of state properties to subscribe to.
+      - `callback`: A callback function `(this: T, key: keyof T, value: unknown, previous: unknown)`
+    - Returns an unsubscribe function
 
 
 ## Examples
