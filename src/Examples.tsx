@@ -261,6 +261,7 @@ const SubscribedCounter2 = () => {
     function (state, subscribe) {
         subscribe(() => [state.count], (key, value, previous) => {
             console.log(`${key} changed from ${previous} to ${value}`);
+            console.log(this);
         });    
     });
     return (

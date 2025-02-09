@@ -53,7 +53,7 @@ https://stackblitz.com/edit/vitejs-vite-mcpb2gpf?file=src%2FApp.tsx
 ## Contents
 
   - [Installation](#installation)
-  - [Basic Usage](#basic-usage)
+  - [Basic usage](#basic-usage)
   - [useReactive API](#usereactive-api)
   - [Examples](#examples)
   - [createReactiveStore](#createreactivestore)
@@ -73,7 +73,7 @@ or
 yarn add @diginet/use-reactive
 ```
 
-## Basic Usage
+## Basic usage
 
 ```tsx
 import { useReactive } from "@diginet/use-reactive";
@@ -114,8 +114,10 @@ const [state, subscribe] = useReactive<T extends object>(
     init?: (this: T, state: T, subscribe: S<T>) => void,
     effect?: E<T> | Array<[E<T>, unknown[]]>,
     deps?: unknown[]
-): [T, subscribe: (targets: () => unknown | unknown[], callback: C<T>) => () => void]
+): [T, S<T>]
 ```
+
+T is the state object, S is a subscribe function and E is an effect function, like React useEffect.
 
 #### Parameters:
 
@@ -130,7 +132,9 @@ const [state, subscribe] = useReactive<T extends object>(
 
 - A tuple:
   - `[0]`: The state object wrapped by a Proxy that updates the React state reactively when its properties change.
-  - `[1]`: A function for subscribing to property changes.
+  - `[1]`: A function for subscribing to property changes. Arguments:
+    - `targets`: A function returning a state property or an array of state properties to subscribe to.
+    - `callback`: A callback function `(this: T, key: keyof T, value: unknown, previous: unknown)`
 
 
 ## Examples

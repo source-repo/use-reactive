@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-type C<T> = (key: keyof T, value: unknown, previous: unknown) => void;
+type C<T> = (this: T, key: keyof T, value: unknown, previous: unknown) => void;
 
 type S<T> = (targets: () => unknown | unknown[], callback: C<T>) => () => void
 
@@ -212,7 +212,7 @@ export function useReactive<T extends object>(
                         for (const subscriber of subscribersRef.current) {
                             if (!subscriber.recording) {
                                 if (subscriber.targets.some(target => target.obj === obj && target.prop === prop)) {
-                                    subscriber.callback(prop as keyof T, value, previousValue);
+                                    subscriber.callback.call(proxy, prop as keyof T, value, previousValue);
                                 }
                             }
                         }
