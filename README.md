@@ -119,11 +119,42 @@ where `type EffectFunction<T> = (this: T, state: T) => void | (() => void);`
 
 ## Examples
 
-```tsx
-import React from "react";
-import { useReactive } from "./useReactive";
+### Using components props and other data
 
-// Example 1: Simple Counter
+Props passed to a component can be used directly by methods on the `useReactive` object. The object state is retained while methods use the latest values:
+
+```tsx
+const Sum = ({ value }: { value: number }) => {
+  const [someState, setSomeState] = useState(0)
+  const state = useReactive({ 
+      initial: 100,
+      get sum() {
+          return this.initial + value + someState;
+      }
+  });
+  return (
+      <div>
+          <h3>Sum example</h3>
+          <p>Sum: { state.sum }</p>
+	      <button onClick={() => setSomeState(someState + 2) }>Increase someState</button>
+      </div>
+  );
+};
+
+const TestSum = () => {
+  const state = useReactive({ value: 0 });
+  return <div>
+      <Sum value={ state.value } />
+      <button onClick={() => state.value++ }>Increment value</button>
+  </div>
+}
+```
+
+
+
+### Simple counter
+
+```tsx
 const Counter = () => {
     const state = useReactive({ count: 0 });
 
@@ -136,8 +167,12 @@ const Counter = () => {
         </div>
     );
 };
+```
 
-// Example 2: Computed Property
+
+### Computed property
+
+```tsx
 const ComputedPropertyExample = () => {
     const state = useReactive({
         count: 2,
@@ -156,8 +191,12 @@ const ComputedPropertyExample = () => {
         </div>
     );
 };
+```
 
-// Example 3: Async State Update
+
+### Async state update
+
+```tsx
 const AsyncExample = () => {
     const state = useReactive({
         count: 0,
@@ -176,8 +215,12 @@ const AsyncExample = () => {
         </div>
     );
 };
+```
 
-// Example 4: Nested State
+
+### Nested state
+
+```tsx
 const NestedStateExample = () => {
     const state = useReactive({
         nested: { value: 10 },
@@ -192,8 +235,13 @@ const NestedStateExample = () => {
         </div>
     );
 };
+```
 
-// Example 5: Single Effect
+
+
+### Single effect
+
+```tsx
 const SingleEffectExample = () => {
     const state = useReactive(
         { count: 0 },
@@ -211,8 +259,13 @@ const SingleEffectExample = () => {
         </div>
     );
 };
+```
 
-// Example 6: Multiple Effects
+
+
+### Multiple effects
+
+```tsx
 const MultipleEffectsExample = () => {
     const state = useReactive(
         { count: 0, text: "Hello" },
@@ -233,82 +286,9 @@ const MultipleEffectsExample = () => {
         </div>
     );
 };
-
-// Generic Button Component
-interface ControlButtonsProps {
-    onIncrement: () => void;
-    onDecrement?: () => void;
-    incrementLabel: string;
-    decrementLabel?: string;
-}
-
-const ControlButtons: React.FC<ControlButtonsProps> = ({ onIncrement, onDecrement, incrementLabel, decrementLabel }) => (
-  <div>
-      <button onClick={onIncrement}>{incrementLabel}</button>
-      {onDecrement && <button onClick={onDecrement}>{decrementLabel}</button>}
-  </div>
-);
-
-// Child component with useReactive using props
-interface ReactiveChildProps {
-    initialCount: number;
-}
-
-const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
-  const state = useReactive(
-      { count: initialCount },
-      function () {
-          console.log("Count changed due to prop update:", this.count);
-      },
-      ["count"]
-  );
-
-  return (
-      <div>
-            <h3>Reactive Child</h3>
-          <p>Count: {state.count}</p>
-          <ControlButtons 
-              onIncrement={() => state.count++} 
-              incrementLabel="Increment" 
-          />
-      </div>
-  );
-};
-
-// Example using ReactiveChild to test prop dependency
-const EffectDependencyExample = () => {
-  const state = useReactive({ count: 0 });
-  
-  return (
-      <div>
-            _________________________________
-            <h3>Effect Dependency Example</h3>
-          <p>Parent Count: {state.count}</p>
-          <ControlButtons 
-              onIncrement={() => state.count++} 
-              incrementLabel="Increment Parent" 
-          />
-          <ReactiveChild initialCount={state.count} />
-      </div>
-  );
-};
-
-// Super Component to Include All Examples
-export const Examples = () => {
-    return (
-        <div>
-            <h2>useReactive Examples</h2>
-            <Counter />
-            <ComputedPropertyExample />
-            <AsyncExample />
-            <NestedStateExample />
-            <SingleEffectExample />
-            <MultipleEffectsExample />
-            <EffectDependencyExample />
-        </div>
-    );
-};
 ```
+
+
 
 ## Contributions
 
