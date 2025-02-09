@@ -170,6 +170,35 @@ const Counter = () => {
 ```
 
 
+
+### Array values
+
+```tsx
+const ArrayExample = () => {
+    const state = useReactive({ 
+        todos: ['hello'],
+        addWorld() {
+            this.todos = [...this.todos, ' world'];
+        },
+        addExclamation() {
+            this.todos.push('!'); // Also reactive
+        }
+    });
+
+    return (
+        <div>
+            _________________________________
+            <h3>Array Example</h3>
+            <p>todos: {state.todos.map(todo => todo)}</p>
+            <button onClick={state.addWorld}>Add world</button>
+            <button onClick={state.addExclamation}>Add !</button>
+        </div>
+    );
+};
+```
+
+
+
 ### Computed property
 
 ```tsx
