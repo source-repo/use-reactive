@@ -116,30 +116,34 @@ export function useReactive<T extends object>(
                     let value: any
                     value = obj[key];
 
-                    /*         
                     // Proxy arrays to trigger updates on mutating methods
                     if (Array.isArray(value)) {
                         return new Proxy(value, {
                             get(arrTarget, arrProp) {
+                                const prevValue = [...arrTarget];
                                 const arrValue = arrTarget[arrProp as any];
 
-                                // If accessing a mutating array method, return a wrapped function
-                                if (typeof arrValue === "function" && ["push", "pop", "shift", "unshift", "splice", "sort", "reverse"].includes(arrProp as string)) {
+                                // If accessing a possibly mutating array method, return a wrapped function
+                                if (typeof arrValue === "function" ) {
                                     return (...args: any[]) => {
                                         const result = arrValue.apply(arrTarget, args);
-                                        if (setState) {
-                                            stateMap?.set(prop, [() => arrTarget, setState]);
-                                            setState(arrTarget);
+                                        if (!isEqual(prevValue, arrTarget)) {
+                                            const stateMap = stateMapRef.current?.get(obj);
+                                            if (!stateMap?.has(prop as keyof T)) return false;
+                                            const [, map, propValue] = stateMap.get(prop as keyof T)!;
+                                            if (!isEqual(obj[prop as keyof T],arrTarget)) {
+                                                stateMap.set(prop as keyof T, [true, map, propValue]);
+                                                obj[prop as keyof T] = arrTarget as any;
+                                                setTrigger((prev) => prev + 1);
+                                            }
                                         }
                                         return result;
                                     };
                                 }
-
                                 return arrValue;
                             },
                         });
                     }
-                    */
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
@@ -148,7 +152,6 @@ export function useReactive<T extends object>(
                         }
                         return proxyCache.get(value);
                     }
-
 
                     // Ensure functions are bound to the proxy object
                     if (typeof value === "function") {
@@ -166,7 +169,7 @@ export function useReactive<T extends object>(
                     const stateMap = stateMapRef.current?.get(obj);
                     if (!stateMap?.has(prop as keyof T)) return false;
                     const [, map, propValue] = stateMap.get(prop as keyof T)!;
-                    if (obj[prop as keyof T] !== value) {
+                    if (!isEqual(obj[prop as keyof T], value)) {
                         stateMap.set(prop as keyof T, [true, map, propValue]);
                         obj[prop as keyof T] = value;
                         setTrigger((prev) => prev + 1);

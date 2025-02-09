@@ -80,7 +80,10 @@ describe('useReactive with Arrays', () => {
       useReactive({
         todos: ['Learn React'],
         addTodo(todo: string) {
-          this.todos = [...this.todos, todo]; // Ensure new array reference for reactivity
+          this.todos = [...this.todos, todo]; // New array reference
+        },
+        addTodoInPlace(todo: string) {
+          this.todos.push(todo); // Mutating array directly
         },
       })
     );
@@ -89,6 +92,10 @@ describe('useReactive with Arrays', () => {
       result.current.addTodo('Master TypeScript');
     });
     expect(result.current.todos).toEqual(['Learn React', 'Master TypeScript']);
+    act(() => {
+      result.current.addTodoInPlace('Master Cobol');
+    });
+    expect(result.current.todos).toEqual(['Learn React', 'Master TypeScript', 'Master Cobol']);
   });
 });
 
