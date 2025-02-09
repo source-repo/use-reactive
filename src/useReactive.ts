@@ -4,14 +4,16 @@ type R<T> = T & {
     subscribe: (targets: () => unknown | unknown[], callback: (key: keyof T, value: unknown, previous: unknown) => void) => void,
 };
 
-type S<T> = (targets: () => unknown | unknown[], callback: (key: keyof T, value: unknown, previous: unknown) => void) => void
+type C<T> = (key: keyof T, value: unknown, previous: unknown) => void;
+
+type S<T> = (targets: () => unknown | unknown[], callback: C<T>) => void
 
 // Effect function type
 type E<T> = (this: R<T>, state: R<T>) => void | (() => void);
 
 type Subscriber<T> = {
     recording: boolean,
-    callback: (key: keyof T, value: unknown, previous: unknown) => void,
+    callback: C<T>,
     targets: {
         obj: object,
         prop: keyof T
@@ -88,7 +90,7 @@ export function useReactive<T extends object>(
     init?: (this: R<T>, state: R<T>) => void,
     effect?: E<T> | Array<[E<T>, unknown[]]>,
     deps?: unknown[]
-): R<T> {
+): [R<T>, S<T>] {
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
     }
@@ -96,11 +98,8 @@ export function useReactive<T extends object>(
     const [, setTrigger] = useState(0); // State updater to trigger re-renders
     const proxyRef = useRef<R<T>>(null);
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(new WeakMap());
-    const subscribersRef = useRef<Array<Subscriber<T>>>(null);
+    const subscribersRef = useRef<Array<Subscriber<T>>>([]);
 
-    if (!subscribersRef.current) {
-        subscribersRef.current = [];
-    }
     let stateMap = stateMapRef.current.get(reactiveStateRef.current);
     if (!stateMap) {
         stateMap = new Map();
@@ -114,35 +113,6 @@ export function useReactive<T extends object>(
             const proxy = new Proxy(target, {
                 get(obj, prop: string | symbol) {
                     const key = prop as keyof T;
-
-                    if (key === "subscribe") {
-                        return (targets: () => unknown | unknown[], callback: () => void) => {
-                            let result = () => undefined;
-                            if (!subscribersRef.current?.length && targets) {
-                                const subscriber: Subscriber<T> = {
-                                    callback,
-                                    recording: true,
-                                    targets: []
-                                };
-                                subscribersRef.current?.push(subscriber);
-                                if (Array.isArray(targets)) {
-                                    targets.forEach(target => {
-                                        target();
-                                    });
-                                } else {
-                                    targets();
-                                }
-                                subscriber.recording = false;
-                                result = () => {
-                                    const index = subscribersRef.current?.indexOf(subscriber);
-                                    if (index !== undefined && index !== -1) {
-                                        subscribersRef.current?.splice(index, 1);
-                                    }
-                                };
-                            }
-                            return result;
-                        }
-                    }
 
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
@@ -275,6 +245,33 @@ export function useReactive<T extends object>(
         }
     }
 
+    function subscribe(targets: () => unknown | unknown[], callback: C<T>) {
+        let result: S<T> = () => undefined;
+        if (subscribersRef.current && targets) {
+            const subscriber: Subscriber<T> = {
+                callback,
+                recording: true,
+                targets: []
+            };
+            subscribersRef.current?.push(subscriber);
+            if (Array.isArray(targets)) {
+                targets.forEach(target => {
+                    target();
+                });
+            } else {
+                targets();
+            }
+            subscriber.recording = false;
+            result = () => {
+                const index = subscribersRef.current?.indexOf(subscriber);
+                if (index !== undefined && index !== -1) {
+                    subscribersRef.current?.splice(index, 1);
+                }
+            };
+        }
+        return result;
+    }
+
     // Return the reactive proxy object
-    return proxyRef.current;
+    return [proxyRef.current, subscribe] as const;
 }

@@ -21,15 +21,15 @@ beforeAll(() => {
 describe('useReactive Hook', () => {
   it('should initialize correctly', () => {
     const { result } = renderHook(() => useReactive({ count: 0 }));
-    expect(result.current.count).toBe(0);
+    expect(result.current[0].count).toBe(0);
   });
 
   it('should update state correctly', () => {
     const { result } = renderHook(() => useReactive({ count: 0 }));
     act(() => {
-      result.current.count++;
+      result.current[0].count++;
     });
-    expect(result.current.count).toBe(1);
+    expect(result.current[0].count).toBe(1);
   });
 });
 
@@ -46,9 +46,9 @@ describe('useReactive with Objects', () => {
     );
 
     act(() => {
-      result.current.user.age++;
+      result.current[0].user.age++;
     });
-    expect(result.current.user.age).toBe(31);
+    expect(result.current[0].user.age).toBe(31);
   });
 });
 
@@ -67,7 +67,7 @@ describe('useReactive with Effects', () => {
     );
 
     act(() => {
-      result.current.count++;
+      result.current[0].count++;
     });
     rerender();
     expect(effectMock).toHaveBeenCalledWith(1);
@@ -90,13 +90,13 @@ describe('useReactive with Arrays', () => {
     );
 
     act(() => {
-      result.current.addTodo('Master TypeScript');
+      result.current[0].addTodo('Master TypeScript');
     });
-    expect(result.current.todos).toEqual(['Learn React', 'Master TypeScript']);
+    expect(result.current[0].todos).toEqual(['Learn React', 'Master TypeScript']);
     act(() => {
-      result.current.addTodoInPlace('Master Cobol');
+      result.current[0].addTodoInPlace('Master Cobol');
     });
-    expect(result.current.todos).toEqual(['Learn React', 'Master TypeScript', 'Master Cobol']);
+    expect(result.current[0].todos).toEqual(['Learn React', 'Master TypeScript', 'Master Cobol']);
   });
 });
 
@@ -123,16 +123,16 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 describe("useReactive Hook", () => {
   test("initial state is reactive and accessible", () => {
     const { result } = renderHook(() => useReactive({ count: 0 }));
-    expect(result.current.count).toBe(0);
+    expect(result.current[0].count).toBe(0);
   });
 
   test("state updates trigger re-renders", () => {
     const { result, rerender } = renderHook(() => useReactive({ count: 0 }));
     act(() => {
-      result.current.count++;
+      result.current[0].count++;
     });
     rerender();
-    expect(result.current.count).toBe(1);
+    expect(result.current[0].count).toBe(1);
   });
 
   test("methods are bound correctly", () => {
@@ -145,9 +145,9 @@ describe("useReactive Hook", () => {
       })
     );
     act(() => {
-      result.current.increment();
+      result.current[0].increment();
     });
-    expect(result.current.count).toBe(1);
+    expect(result.current[0].count).toBe(1);
   });
 
   test("init method runs once", () => {
@@ -165,7 +165,7 @@ describe("useReactive Hook", () => {
         },
       })
     );
-    expect(result.current.double).toBe(4);
+    expect(result.current[0].double).toBe(4);
   });
 
   test("async methods work properly", async () => {
@@ -179,9 +179,9 @@ describe("useReactive Hook", () => {
       })
     );
     await act(async () => {
-      await result.current.incrementAsync();
+      await result.current[0].incrementAsync();
     });
-    expect(result.current.count).toBe(1);
+    expect(result.current[0].count).toBe(1);
   });
 
   test("nested state objects are reactive", () => {
@@ -191,9 +191,9 @@ describe("useReactive Hook", () => {
       })
     );
     act(() => {
-      result.current.nested.value++;
+      result.current[0].nested.value++;
     });
-    expect(result.current.nested.value).toBe(11);
+    expect(result.current[0].nested.value).toBe(11);
   });
 
   test("effects run when dependencies change", () => {
@@ -266,7 +266,7 @@ test("multiple effects run when dependencies change", () => {
   expect(effectMock2).toHaveBeenCalledWith("b");
 
   act(() => {
-    result.current.count2++;
+    result.current[0].count2++;
   });
 
   rerender({ propCount: 1, anotherProp: "b" });
@@ -338,10 +338,10 @@ describe("createReactiveStore", () => {
     const effectMock = vi.fn();
     const { result, rerender } = renderHook(() => useReactive({ count: 0 }));
     act(() => {
-      result.current.subscribe(() => [result.current.count], () => effectMock(1));
-      result.current.count++;
+      result.current[1](() => [result.current[0].count], () => effectMock(1));
+      result.current[0].count++;
     });
-    expect(result.current.count).toBe(1);
+    expect(result.current[0].count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
 });

@@ -13,7 +13,7 @@ export function createReactiveStore<T extends object>(initialState: T) {
 
     const ReactiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const [, forceUpdate] = useState(0);
-        const store = useReactive(initialState);
+        const [store] = useReactive(initialState);
 
         // Override the global state setter to trigger re-renders
         const triggerUpdate = () => forceUpdate((prev) => prev + 1);

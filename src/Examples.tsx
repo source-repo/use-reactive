@@ -4,7 +4,7 @@ import { createReactiveStore } from "./useReactiveStore.js";
 
 // Example 1: Simple Counter
 const Counter = () => {
-    const state = useReactive({ count: 0 });
+    const [state] = useReactive({ count: 0 });
 
     return (
         <div>
@@ -18,7 +18,7 @@ const Counter = () => {
 
 // Example 2: Computed Property
 const ComputedPropertyExample = () => {
-    const state = useReactive({
+    const [state] = useReactive({
         count: 2,
         get double() {
             return this.count * 2;
@@ -38,7 +38,7 @@ const ComputedPropertyExample = () => {
 
 // Example 3: Async State Update
 const AsyncExample = () => {
-    const state = useReactive({
+    const [state] = useReactive({
         count: 0,
         async incrementAsync() {
             await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -58,7 +58,7 @@ const AsyncExample = () => {
 
 // Example 4: Nested State
 const NestedStateExample = () => {
-    const state = useReactive({
+    const [state] = useReactive({
         nested: { value: 10 },
     });
 
@@ -74,7 +74,7 @@ const NestedStateExample = () => {
 
 // Example 5: Single Effect
 const SingleEffectExample = () => {
-    const state = useReactive(
+    const [state] = useReactive(
         { count: 0 },
         undefined,
         function () {
@@ -94,7 +94,7 @@ const SingleEffectExample = () => {
 
 // Example 6: Multiple Effects
 const MultipleEffectsExample = () => {
-    const state = useReactive(
+    const [state] = useReactive(
         { count: 0, text: "Hello" },
         undefined,
         [
@@ -136,7 +136,7 @@ interface ReactiveChildProps {
 }
 
 const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
-    const state = useReactive(
+    const [state] = useReactive(
         { count: initialCount },
         undefined,
         function () {
@@ -159,7 +159,7 @@ const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
 
 // Example using ReactiveChild to test prop dependency
 const EffectDependencyExample = () => {
-    const state = useReactive({ count: 0 });
+    const [state] = useReactive({ count: 0 });
 
     return (
         <div>
@@ -177,7 +177,7 @@ const EffectDependencyExample = () => {
 
 // Example using ReactiveChild to test prop dependency
 const ArrayExample = () => {
-    const state = useReactive({
+    const [state] = useReactive({
         todos: ['hello'],
         addWorld() {
             this.todos = [...this.todos, ' world'];
@@ -228,7 +228,7 @@ function AnotherReactiveStoreUser() {
 }
 
 export const SubscribedCounter = () => {
-    const state = useReactive({
+    const [state, subscribe] = useReactive({
         count: 0,
         count2: 0,
     }, 
@@ -238,17 +238,14 @@ export const SubscribedCounter = () => {
     },
     function () {
         console.log("SubscribedCounter effect");
-        this.subscribe(() => [this.count], (key, value, previous) => {
+        subscribe(() => [this.count2, this.count], (key, value, previous) => {
             console.log(`${key} changed from ${previous} to ${value}`);
         });
     }, []);
-    state.subscribe(() => [state.count2], (key, value, previous) => {
-        console.log(`${key} changed from ${previous} to ${value}`);
-    });
     return (
         <div>
             <h3>Subscribed Counter</h3>
-            <p>Count: {state.count}</p>
+            <p>Count: {state.count} Count2: {state.count2}</p>
             <button onClick={() => state.count++}>Increment</button>
             <button onClick={() => state.count--}>Decrement</button>
             <button onClick={() => state.count2++}>Increment 2</button>

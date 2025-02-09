@@ -49,7 +49,7 @@ export const StoreUserInfo = () => {
 
 const Sum = ({ value }: { value: number }) => {
   const [someState, setSomeState] = useState(0)
-  const state = useReactive({ 
+  const [state] = useReactive({ 
       initial: 100,
       get sum() {
           return this.initial + value + someState;
@@ -65,7 +65,7 @@ const Sum = ({ value }: { value: number }) => {
 };
 
 const TestSum = () => {
-  const state = useReactive({ value: 0 });
+  const [state] = useReactive({ value: 0 });
   return <div>
       <Sum value={ state.value } />
       <button onClick={() => state.value++ }>Increment value</button>
@@ -133,7 +133,7 @@ type DualCounter3Props = {
 };
 
 export function DualCounter3({ inputCounter1 = 0, inputCounter2 = 0 }: DualCounter3Props) {
-  const state = useReactive({
+  const [state] = useReactive({
     inputCounter1,
     inputCounter2,
     count1: 0,
@@ -160,7 +160,7 @@ export function DualCounter3({ inputCounter1 = 0, inputCounter2 = 0 }: DualCount
 }
 
 function App() {
-  const state = useReactive({
+  const [state] = useReactive({
     count1: 123,
     count2: 456,
   });
