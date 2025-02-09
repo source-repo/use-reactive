@@ -1,13 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 
-// Reactive state type
-type ReactiveState<T> = T & {
-    init?: () => void,
-    subscribe?: (callback: () => void, targets: () => unknown | unknown[]) => void,
+type R<T> = T & {
+    subscribe: (targets: () => unknown | unknown[], callback: (key: keyof T, value: unknown, previous: unknown) => void) => void,
 };
 
+type S<T> = (targets: () => unknown | unknown[], callback: (key: keyof T, value: unknown, previous: unknown) => void) => void
+
 // Effect function type
-type EffectFunction<T> = (this: T, state: T) => void | (() => void);
+type E<T> = (this: R<T>, state: R<T>) => void | (() => void);
+
+type Subscriber<T> = {
+    recording: boolean,
+    callback: (key: keyof T, value: unknown, previous: unknown) => void,
+    targets: {
+        obj: object,
+        prop: keyof T
+    }[]
+};
 
 /**
  * Map for storing data about each property
@@ -76,18 +85,22 @@ const syncState = <T extends object>(stateMapRef: WeakMap<object, PropertyMap>, 
  */
 export function useReactive<T extends object>(
     reactiveState: T,
-    effect?: EffectFunction<T> | Array<[EffectFunction<T>, unknown[]]>,
+    init?: (this: R<T>, state: R<T>) => void,
+    effect?: E<T> | Array<[E<T>, unknown[]]>,
     deps?: unknown[]
-): T {
+): R<T> {
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
     }
     const reactiveStateRef = useRef(reactiveState);
     const [, setTrigger] = useState(0); // State updater to trigger re-renders
-    const proxyRef = useRef<ReactiveState<T>>(null);
+    const proxyRef = useRef<R<T>>(null);
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(new WeakMap());
-    //const callbacks: useRef();
+    const subscribersRef = useRef<Array<Subscriber<T>>>(null);
 
+    if (!subscribersRef.current) {
+        subscribersRef.current = [];
+    }
     let stateMap = stateMapRef.current.get(reactiveStateRef.current);
     if (!stateMap) {
         stateMap = new Map();
@@ -97,10 +110,47 @@ export function useReactive<T extends object>(
 
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
-        const createReactiveProxy = (target: ReactiveState<T>): T => {
+        const createReactiveProxy = (target: T): R<T> => {
             const proxy = new Proxy(target, {
                 get(obj, prop: string | symbol) {
                     const key = prop as keyof T;
+
+                    if (key === "subscribe") {
+                        return (targets: () => unknown | unknown[], callback: () => void) => {
+                            let result = () => undefined;
+                            if (!subscribersRef.current?.length && targets) {
+                                const subscriber: Subscriber<T> = {
+                                    callback,
+                                    recording: true,
+                                    targets: []
+                                };
+                                subscribersRef.current?.push(subscriber);
+                                if (Array.isArray(targets)) {
+                                    targets.forEach(target => {
+                                        target();
+                                    });
+                                } else {
+                                    targets();
+                                }
+                                subscriber.recording = false;
+                                result = () => {
+                                    const index = subscribersRef.current?.indexOf(subscriber);
+                                    if (index !== undefined && index !== -1) {
+                                        subscribersRef.current?.splice(index, 1);
+                                    }
+                                };
+                            }
+                            return result;
+                        }
+                    }
+
+                    if (subscribersRef.current) {
+                        for (const subscriber of subscribersRef.current) {
+                            if (subscriber.recording) {
+                                subscriber.targets.push({ obj, prop: key });
+                            }
+                        }
+                    }
 
                     // Handle computed properties (getters)
                     const descriptor = Object.getOwnPropertyDescriptor(obj, key);
@@ -143,7 +193,7 @@ export function useReactive<T extends object>(
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        return createReactiveProxy(value as ReactiveState<T>);
+                        return createReactiveProxy(value as T);
                     }
 
                     // Ensure functions are bound to the proxy object
@@ -159,50 +209,33 @@ export function useReactive<T extends object>(
                     const stateMap = stateMapRef.current?.get(obj);
                     if (!stateMap?.has(prop as keyof T)) return false;
                     const [, map, propValue] = stateMap.get(prop as keyof T)!;
-                    if (!isEqual(obj[prop as keyof T], value)) {
+                    const previousValue = obj[prop as keyof T];
+                    if (!isEqual(previousValue, value)) {
                         stateMap.set(prop as keyof T, [true, map, propValue]);
                         obj[prop as keyof T] = value;
                         setTrigger((prev) => prev + 1);
                     }
+                    if (subscribersRef.current) {
+                        for (const subscriber of subscribersRef.current) {
+                            if (!subscriber.recording) {
+                                if (subscriber.targets.some(target => target.obj === obj && target.prop === prop)) {
+                                    subscriber.callback(prop as keyof T, value, previousValue);
+                                }
+                            }
+                        }
+                    }
                     return true;
                 },
             });
-            return proxy;
+            const result = proxy as R<T>;
+            return result;
         }
         proxyRef.current = createReactiveProxy(reactiveStateRef.current);
 
-        // If the object has an init method, call it after creation
-        if (proxyRef.current.init && typeof proxyRef.current.init === "function") {
-            proxyRef.current.init!();
+        // If we have an init method, call it after creation
+        if (init && typeof init === "function") {
+            init!.call(proxyRef.current, proxyRef.current);
         }
-        /*
-        proxyRef.current.subscribe = (callback, targets) => {
-            if (targets) {
-                callbacks.push([callback]);
-                if (Array.isArray(targets)) {
-                    targets.forEach((target: any) => {
-                        const stateMap = stateMapRef.current?.get(target);
-                        if (!stateMap) return;
-                        stateMap.forEach(([modifiedFlag, childMap, propValue], key) => {
-                            if (modifiedFlag) {
-                                stateMap.set(key, [false, childMap, propValue]);
-                                callback();
-                            }
-                        });
-                    });
-                } else {
-                    const stateMap = stateMapRef.current?.get(targets);
-                    if (!stateMap) return;
-                    stateMap.forEach(([modifiedFlag, childMap, propValue], key) => {
-                        if (modifiedFlag) {
-                            stateMap.set(key, [false, childMap, propValue]);
-                            callback();
-                        }
-                    });
-                }
-            }
-        }
-        */
     }
 
     // useEffect to handle side effects and cleanup

@@ -9,15 +9,17 @@
 `useReactive` is a custom React hook that provides a reactive state object. Methods on the state object use `this` to access members, enabling OOP-style encapsulation of data and behavior. There is also a companion React context for sharing a reactive state within a component hierarchy, see [createReactiveStore](#createReactiveStore) below.
 
 ```tsx
-const state = useReactive({
-  count: 0,
-  increment() {
-    this.count++;
+const state = useReactive(
+  {
+    count: 0,
+    increment() {
+      this.count++;
+    },
   },
-  init() {
+  function init() {
     console.log('Only runs once!')
   }
-});
+);
 ```
 
 Use directly in markup:
@@ -35,7 +37,7 @@ Use directly in markup:
 - Fine-grained reactivity through direct property access. 
 - **Intellisense** and **type checking** through generics when using TypeScript 
 - Methods on the state object are automatically bound, allowing `this` to be used within them. 
-- A method named `init` on the state object runs only once.
+- A function to run once only may be passed as a second argument.
 - Supports computed properties (getters). 
 - State changes trigger partial React re-render.
 - Supports **async** methods.
@@ -98,27 +100,26 @@ Note: The function `increment` above can be declared without the `function` keyw
 `useReactive(state, effectOrEffects, ...deps)`
 
 - `state`: The state object with properties and methods bound to `this`.
-- `effectOrEffects`: Effect function OR array of function and dependency pairs. State is supplied as argument (also `this`).
-- `deps`: Array of dependencies for a single effect function.
+- `init?`: A function to run only once.
+- `effectOrEffects?`: Effect function OR array of function and dependency pairs. State is supplied as argument (also `this`).
+- `deps?`: Array of dependencies for a single effect function.
 
 ###### TypeScript
 
-`useReactive<T>(state: T, effectOrEffects?: EffectFunction<T> | Array<[EffectFunction<T>, unknown[]]>, ...deps: unknown[]): T`
-
-where `type EffectFunction<T> = (this: T, state: T) => void | (() => void);`
+```typescript
+useReactive<T extends object>(
+    reactiveState: T,
+    init?: (this: R<T>, state: R<T>) => void,
+    effect?: E<T> | Array<[E<T>, unknown[]]>,
+    deps?: unknown[]
+): R<T>
+```
 
 #### Parameters:
 
-- `state`: The state object.
-  - Properties
-    - Simple data types
-    - objects
-      - Create with useReactive to make child objects reactive, see example below.
-    - arrays
-      - Reactive by replacing with a new array or using `push`, `pop`, `shift`, `unshift`, `splice`, `sort` and `reverse` in-place array methods
-    - [async] `<`method`>`:  Any function. The `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
-    - `init(state)`: Special method that runs once. Do not use an arrow function as this will make `this` refer to the global scope.
-- `effectOrEffects?`: Side effect(s) that can run when a dependency changes. State is supplied as argument to the function.  Must be declared with the `function` keyword. Do not use an arrow function as this will make `this` refer to the global scope. Return a cleanup function if needed.
+- `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
+- `init(state)`: Function to  runs once only.
+- `effectOrEffects(state)?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
   - Optionally this can be an array of effect and dependency pairs: [ [`function foo1 {}`, [`dep1`] ], [`function foo2 {}`, [`dep2`] ] ]
 
 - `deps?`: Dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function.
@@ -126,6 +127,8 @@ where `type EffectFunction<T> = (this: T, state: T) => void | (() => void);`
 #### Returns:
 
 - A state object wrapped by a Proxy that updates the React state reactively when its properties change.
+  - `subscribe(targets, callback)`: Subscribe to property changes.
+
 
 ## Examples
 

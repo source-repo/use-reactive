@@ -1,5 +1,6 @@
 import React from "react";
-import { useReactive, createReactiveStore } from ".";
+import { useReactive } from "./useReactive.js";
+import { createReactiveStore } from "./useReactiveStore.js";
 
 // Example 1: Simple Counter
 const Counter = () => {
@@ -75,6 +76,7 @@ const NestedStateExample = () => {
 const SingleEffectExample = () => {
     const state = useReactive(
         { count: 0 },
+        undefined,
         function () {
             console.log("Count changed:", this.count);
         },
@@ -94,6 +96,7 @@ const SingleEffectExample = () => {
 const MultipleEffectsExample = () => {
     const state = useReactive(
         { count: 0, text: "Hello" },
+        undefined,
         [
             [function () { console.log("Count changed:", this.count); }, []],
             [function () { console.log("Text changed:", this.text); }, []],
@@ -135,6 +138,7 @@ interface ReactiveChildProps {
 const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
     const state = useReactive(
         { count: initialCount },
+        undefined,
         function () {
             console.log("Count changed due to prop update:", this.count);
         },
@@ -173,7 +177,7 @@ const EffectDependencyExample = () => {
 
 // Example using ReactiveChild to test prop dependency
 const ArrayExample = () => {
-    const state = useReactive({ 
+    const state = useReactive({
         todos: ['hello'],
         addWorld() {
             this.todos = [...this.todos, ' world'];
@@ -223,11 +227,42 @@ function AnotherReactiveStoreUser() {
     );
 }
 
+export const SubscribedCounter = () => {
+    const state = useReactive({
+        count: 0,
+        count2: 0,
+    }, 
+    function () {
+        this.count = 10;
+        console.log("SubscribedCounter initialized");
+    },
+    function () {
+        console.log("SubscribedCounter effect");
+        this.subscribe(() => [this.count], (key, value, previous) => {
+            console.log(`${key} changed from ${previous} to ${value}`);
+        });
+    }, []);
+    state.subscribe(() => [state.count2], (key, value, previous) => {
+        console.log(`${key} changed from ${previous} to ${value}`);
+    });
+    return (
+        <div>
+            <h3>Subscribed Counter</h3>
+            <p>Count: {state.count}</p>
+            <button onClick={() => state.count++}>Increment</button>
+            <button onClick={() => state.count--}>Decrement</button>
+            <button onClick={() => state.count2++}>Increment 2</button>
+            <button onClick={() => state.count2--}>Decrement s</button>
+        </div>
+    );
+};
+
 // Super Component to Include All Examples
 export const Examples = () => {
     return (
         <div>
             <h2>useReactive Examples</h2>
+            <SubscribedCounter />
             <Counter />
             <ComputedPropertyExample />
             <AsyncExample />

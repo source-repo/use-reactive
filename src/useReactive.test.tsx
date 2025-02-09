@@ -59,6 +59,7 @@ describe('useReactive with Effects', () => {
     const { result, rerender } = renderHook(() =>
       useReactive(
         { count: 0 },
+        undefined,
         function (state) {
           effectMock(state.count);
         }
@@ -99,15 +100,17 @@ describe('useReactive with Arrays', () => {
   });
 });
 
-// Test for special `init` function
+// Test for call to init argument
 describe('useReactive init function', () => {
   it('should call init function on creation', () => {
     const initMock = vi.fn();
     const { result } = renderHook(() =>
       useReactive({
         count: 0,
-        init: initMock, // Special init function
-      })
+
+      },
+        initMock, // Init function
+      )
     );
 
     expect(initMock).toHaveBeenCalled();
@@ -149,7 +152,7 @@ describe("useReactive Hook", () => {
 
   test("init method runs once", () => {
     const initMock = vitest.fn();
-    renderHook(() => useReactive({ init: initMock }));
+    renderHook(() => useReactive({}, initMock));
     expect(initMock).toHaveBeenCalledTimes(1);
   });
 
@@ -203,6 +206,7 @@ describe("useReactive Hook", () => {
             this.count++;
           }
         },
+        undefined,
         function (state) {
           console.log('this: ', this);
           const { count } = state;
@@ -229,6 +233,7 @@ test("multiple effects run when dependencies change", () => {
         value: anotherProp,
         count2: 33,
       },
+      undefined,
       [
         [
           function () {
@@ -272,61 +277,71 @@ test("multiple effects run when dependencies change", () => {
 
 describe("createReactiveStore", () => {
   it("should provide reactive state to components", () => {
-      const [Provider, useStore] = createReactiveStore({ counter: 0 });
+    const [Provider, useStore] = createReactiveStore({ counter: 0 });
 
-      const { result } = renderHook(() => useStore(), {
-          wrapper: ({ children }) => <Provider>{children}</Provider>,
-      });
+    const { result } = renderHook(() => useStore(), {
+      wrapper: ({ children }) => <Provider>{children}</Provider>,
+    });
 
-      expect(result.current.counter).toBe(0);
+    expect(result.current.counter).toBe(0);
 
-      act(() => {
-          result.current.counter++;
-      });
+    act(() => {
+      result.current.counter++;
+    });
 
-      expect(result.current.counter).toBe(1);
+    expect(result.current.counter).toBe(1);
   });
 
   it("should throw an error when used outside of provider", () => {
-      const [, useStore] = createReactiveStore({ counter: 0 });
-      
-      expect(() => renderHook(() => useStore())).toThrow(
-          "useReactiveStore must be used within a ReactiveStoreProvider"
-      );
+    const [, useStore] = createReactiveStore({ counter: 0 });
+
+    expect(() => renderHook(() => useStore())).toThrow(
+      "useReactiveStore must be used within a ReactiveStoreProvider"
+    );
   });
 
   it("should support multiple state properties", () => {
-      const [Provider, useStore] = createReactiveStore({ counter: 0, user: { name: "John" } });
+    const [Provider, useStore] = createReactiveStore({ counter: 0, user: { name: "John" } });
 
-      const { result } = renderHook(() => useStore(), {
-          wrapper: ({ children }) => <Provider>{children}</Provider>,
-      });
+    const { result } = renderHook(() => useStore(), {
+      wrapper: ({ children }) => <Provider>{children}</Provider>,
+    });
 
-      expect(result.current.counter).toBe(0);
-      expect(result.current.user.name).toBe("John");
+    expect(result.current.counter).toBe(0);
+    expect(result.current.user.name).toBe("John");
 
-      act(() => {
-          result.current.counter += 5;
-          result.current.user.name = "Doe";
-      });
+    act(() => {
+      result.current.counter += 5;
+      result.current.user.name = "Doe";
+    });
 
-      expect(result.current.counter).toBe(5);
-      expect(result.current.user.name).toBe("Doe");
+    expect(result.current.counter).toBe(5);
+    expect(result.current.user.name).toBe("Doe");
   });
 
   it("should trigger re-renders when state updates", () => {
-      const [Provider, useStore] = createReactiveStore({ count: 0 });
+    const [Provider, useStore] = createReactiveStore({ count: 0 });
 
-      const { result, rerender } = renderHook(() => useStore(), {
-          wrapper: ({ children }) => <Provider>{children}</Provider>,
-      });
+    const { result, rerender } = renderHook(() => useStore(), {
+      wrapper: ({ children }) => <Provider>{children}</Provider>,
+    });
 
-      act(() => {
-          result.current.count++;
-      });
+    act(() => {
+      result.current.count++;
+    });
 
-      rerender();
+    rerender();
 
-      expect(result.current.count).toBe(1);
+    expect(result.current.count).toBe(1);
+  });
+  it("should trigger a callback when a given property updates", () => {
+    const effectMock = vi.fn();
+    const { result, rerender } = renderHook(() => useReactive({ count: 0 }));
+    act(() => {
+      result.current.subscribe(() => [result.current.count], () => effectMock(1));
+      result.current.count++;
+    });
+    expect(result.current.count).toBe(1);
+    expect(effectMock).toHaveBeenCalledWith(1);
   });
 });

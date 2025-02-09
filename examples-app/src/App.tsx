@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button.jsx";
 import './App.css'
 import { useReactive } from "./symlink/useReactive.js";
 import { createReactiveStore } from './symlink/useReactiveStore.js'
+import { SubscribedCounter } from "./symlink/Examples.js";
 
 const [ ReactiveStoreProvider1, useReactiveStore1 ] = createReactiveStore({
     counter: 0,
@@ -159,7 +160,6 @@ export function DualCounter3({ inputCounter1 = 0, inputCounter2 = 0 }: DualCount
 }
 
 function App() {
-
   const state = useReactive({
     count1: 123,
     count2: 456,
@@ -167,6 +167,7 @@ function App() {
   return (
     <>
       <div>
+        <SubscribedCounter />
         <TestReactiveStore />
         <TestSum />
         <Button onClick={() => state.count1++}>Increment inputCount1 {state.count1}</Button>
