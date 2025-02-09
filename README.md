@@ -6,7 +6,7 @@
 ```
 # useReactive
 
-`useReactive` is a custom React hook that provides a reactive state object. Methods on the state object use `this` to access members, enabling OOP-style encapsulation of data and behavior.
+`useReactive` is a custom React hook that provides a reactive state object. Methods on the state object use `this` to access members, enabling OOP-style encapsulation of data and behavi`or. There is also a companion React context for sharing a reactive state within a component hierarchy, see [createReactiveStore](#createReactiveStore) below.
 
 ```tsx
 const state = useReactive({
@@ -81,7 +81,7 @@ function ExampleComponent() {
 
 Note: The function `increment` above can be declared without the `function` keyword using object shorthand syntax.
 
-## API
+## useReactive API
 
 ###### JavaScript (TL;DR)
 
@@ -290,9 +290,100 @@ const MultipleEffectsExample = () => {
 
 
 
+## createReactiveStore
+
+The `createReactiveStore` function provides a globally shared reactive state using React Context and `useReactive`. It allows components to access and modify a reactive state object while ensuring updates trigger re-renders.
+
+### Usage
+
+### 1. Define a Global Store
+
+Create a file `globalState.ts` and initialize the global store:
+
+```
+import { createReactiveStore } from "@diginet/useReactive";
+
+export cconst [ ReactiveStoreProvider, useReactiveStore ] = createReactiveStore({
+    counter: 0,
+    user: { name: "John Doe", age: 30 },
+});
+```
+
+### 2. Wrap the Application
+
+In `App.tsx`, wrap your components with your`ReactiveStoreProvider` to enable global state access:
+
+```
+import React from "react";
+import { ReactiveStoreProvider } from "./globalState";
+import Counter from "./Counter";
+import UserInfo from "./UserInfo";
+
+export function App() {
+    return (
+        <ReactiveStoreProvider>
+            <div>
+                <h2>Global Reactive State Example</h2>
+                <Counter />
+                <UserInfo />
+            </div>
+        </ReactiveStoreProvider>
+    );
+}
+```
+
+### 3. Use the Global State in Components
+
+#### Counter Component (`Counter.tsx`)
+
+```
+import React from "react";
+import { useReactiveStore } from "./globalState";
+
+export const Counter = () => {
+    const store = useReactiveStore();
+
+    return (
+        <div>
+            <h2>Counter: {store.counter}</h2>
+            <button onClick={() => store.counter++}>Increment</button>
+            <button onClick={() => store.counter--}>Decrement</button>
+        </div>
+    );
+};
+```
+
+#### User Info Component (`UserInfo.tsx`)
+
+```
+import React from "react";
+import { useReactiveStore } from "./globalState";
+
+export const UserInfo = () => {
+    const store = useReactiveStore();
+
+    return (
+        <div>
+            <h2>User: {store.user.name}, Age: {store.user.age}, Counter: { store.counter }</h2>
+            <button onClick={() => store.user.age++}>Increase Age</button>
+        </div>
+    );
+};
+```
+
+### createReactiveStore feature
+
+**Reactive Global State** - Changes automatically trigger re-renders.
+
+**Lightweight & Simple** - No external state management libraries needed. 
+
+**Flexible** - Can be used in any React project requiring a shared state.
+
+This makes `createReactiveStore` a powerful tool for managing global reactive state in React applications.
+
 ## Contributions
 
-Are welcome, create a pull request.
+Contributions are welcome, create a pull request.
 
 Add tests for new functionality.
 

@@ -3,6 +3,48 @@ import { Examples } from './symlink/Examples.jsx'
 import { Button } from "@/components/ui/button.jsx";
 import './App.css'
 import { useReactive } from "./symlink/useReactive.js";
+import { createReactiveStore } from './symlink/useReactiveStore.js'
+
+const [ ReactiveStoreProvider1, useReactiveStore1 ] = createReactiveStore({
+    counter: 0,
+    user: { name: "John Doe", age: 30 },
+});
+
+function TestReactiveStore() {
+    return (
+        <ReactiveStoreProvider1>
+            <div>
+                <h2>Global Reactive State Example</h2>
+                <StoreCounter />
+                <StoreUserInfo />
+            </div>
+        </ReactiveStoreProvider1>
+    );
+}
+
+export const StoreCounter = () => {
+    const store = useReactiveStore1();
+
+    return (
+        <div>
+            <h2>Counter: {store.counter}</h2>
+            <button onClick={() => store.counter++}>Increment</button>
+            <button onClick={() => store.counter--}>Decrement</button>
+        </div>
+    );
+};
+
+export const StoreUserInfo = () => {
+    const store = useReactiveStore1();
+
+    return (
+        <div>
+            <h2>User: {store.user.name}, Age: {store.user.age}, Counter: { store.counter }</h2>
+            <button onClick={() => store.user.age++}>Increase Age</button>
+        </div>
+    );
+};
+
 
 const Sum = ({ value }: { value: number }) => {
   const [someState, setSomeState] = useState(0)
@@ -116,6 +158,23 @@ export function DualCounter3({ inputCounter1 = 0, inputCounter2 = 0 }: DualCount
   );
 }
 
+const [ ReactiveStoreProvider, useReactiveStore ] = createReactiveStore({
+  counter: 0,
+  user: { name: "John Doe", age: 30 },
+});
+
+function ReactiveStoreUser() {
+  const store = useReactiveStore();
+  return (
+    <div>
+      <h2>Reactive store user</h2>
+      <p>Name: {store.user.name}, Age: {store.user.age}</p>
+      <Button onClick={() => store.user.name = "Jane Doe"}>Change name</Button>
+      <Button onClick={() => store.user.age++}>Increment age</Button>
+    </div>
+  );
+}
+
 function App() {
 
   const state = useReactive({
@@ -125,11 +184,19 @@ function App() {
   return (
     <>
       <div>
+        <TestReactiveStore />
         <TestSum />
         <Button onClick={() => state.count1++}>Increment inputCount1 {state.count1}</Button>
         <Button onClick={() => state.count2++}>Increment inputCount2 {state.count2}</Button>
         <DualCounter3 inputCounter1={state.count1} inputCounter2={state.count2} />
         <Examples />
+        <ReactiveStoreProvider >
+          <ReactiveStoreUser />
+          <ReactiveStoreUser />
+          <ReactiveStoreUser />
+          <ReactiveStoreUser />
+          <ReactiveStoreUser />
+        </ReactiveStoreProvider>
       </div>
     </>
   )
