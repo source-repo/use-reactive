@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 
 // Reactive state type
-type ReactiveState<T> = T & { 
-    init?: () => void ,
+type ReactiveState<T> = T & {
+    init?: () => void,
     subscribe?: (callback: () => void, targets: () => unknown | unknown[]) => void,
 };
 
@@ -87,7 +87,6 @@ export function useReactive<T extends object>(
     const reactiveStateRef = useRef(reactiveState);
     const [, setTrigger] = useState(0); // State updater to trigger re-renders
     const proxyRef = useRef<ReactiveState<T>>(null);
-    const boundFunctions = new WeakMap<Function, Function>();
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(null);
     //const callbacks: useRef();
 
@@ -123,7 +122,7 @@ export function useReactive<T extends object>(
                                 const arrValue = arrTarget[arrProp as any];
 
                                 // If accessing a possibly mutating array method, return a wrapped function
-                                if (typeof arrValue === "function" ) {
+                                if (typeof arrValue === "function") {
                                     return (...args: any[]) => {
                                         const result = arrValue.apply(arrTarget, args);
                                         if (!isEqual(prevValue, arrTarget)) {
@@ -151,12 +150,9 @@ export function useReactive<T extends object>(
 
                     // Ensure functions are bound to the proxy object
                     if (typeof value === "function") {
-                        if (!boundFunctions.has(value)) {
-                            boundFunctions.set(value, function (...args: any[]) {
-                                return value.apply(proxy, args); // Now correctly bound to the current proxy
-                            });
-                        }
-                        return boundFunctions.get(value);
+                        return function (...args: any[]) {
+                            return value.apply(proxy, args); // Now correctly bound to the current proxy
+                        };
                     }
 
                     return value;
