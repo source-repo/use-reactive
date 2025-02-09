@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 
 // Reactive state type
-type ReactiveState<T> = T & { init?: () => void };
+type ReactiveState<T> = T & { 
+    init?: () => void ,
+    subscribe?: (callback: () => void, targets: () => unknown | unknown[]) => void,
+};
 
 // Effect function type
 type EffectFunction<T> = (this: T, state: T) => void | (() => void);
@@ -83,10 +86,10 @@ export function useReactive<T extends object>(
 
     const reactiveStateRef = useRef(reactiveState);
     const [, setTrigger] = useState(0); // State updater to trigger re-renders
-    const proxyRef = useRef<T>(null);
-    const proxyCache = new WeakMap<object, any>();
+    const proxyRef = useRef<ReactiveState<T>>(null);
     const boundFunctions = new WeakMap<Function, Function>();
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(null);
+    //const callbacks: useRef();
 
     if (!stateMapRef.current) {
         stateMapRef.current = new WeakMap()
@@ -98,10 +101,6 @@ export function useReactive<T extends object>(
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
         const createReactiveProxy = (target: ReactiveState<T>): T => {
-            // If a proxy already exists, return it
-            if (proxyCache.has(target)) {
-                return proxyCache.get(target);
-            }
             const proxy = new Proxy(target, {
                 get(obj, prop: string | symbol) {
                     const key = prop as keyof T;
@@ -147,10 +146,7 @@ export function useReactive<T extends object>(
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        if (!proxyCache.has(value)) {
-                            proxyCache.set(value, createReactiveProxy(value as ReactiveState<T>));
-                        }
-                        return proxyCache.get(value);
+                        return createReactiveProxy(value as ReactiveState<T>);
                     }
 
                     // Ensure functions are bound to the proxy object
@@ -177,15 +173,42 @@ export function useReactive<T extends object>(
                     return true;
                 },
             });
-            proxyCache.set(target, proxy);
             return proxy;
         }
         proxyRef.current = createReactiveProxy(reactiveStateRef.current);
 
         // If the object has an init method, call it after creation
-        if ("init" in proxyRef.current && typeof proxyRef.current.init === "function") {
+        if (proxyRef.current.init && typeof proxyRef.current.init === "function") {
             proxyRef.current.init!();
         }
+        /*
+        proxyRef.current.subscribe = (callback, targets) => {
+            if (targets) {
+                callbacks.push([callback]);
+                if (Array.isArray(targets)) {
+                    targets.forEach((target: any) => {
+                        const stateMap = stateMapRef.current?.get(target);
+                        if (!stateMap) return;
+                        stateMap.forEach(([modifiedFlag, childMap, propValue], key) => {
+                            if (modifiedFlag) {
+                                stateMap.set(key, [false, childMap, propValue]);
+                                callback();
+                            }
+                        });
+                    });
+                } else {
+                    const stateMap = stateMapRef.current?.get(targets);
+                    if (!stateMap) return;
+                    stateMap.forEach(([modifiedFlag, childMap, propValue], key) => {
+                        if (modifiedFlag) {
+                            stateMap.set(key, [false, childMap, propValue]);
+                            callback();
+                        }
+                    });
+                }
+            }
+        }
+        */
     }
 
     // useEffect to handle side effects and cleanup
