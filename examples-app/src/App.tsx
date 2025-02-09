@@ -158,23 +158,6 @@ export function DualCounter3({ inputCounter1 = 0, inputCounter2 = 0 }: DualCount
   );
 }
 
-const [ ReactiveStoreProvider, useReactiveStore ] = createReactiveStore({
-  counter: 0,
-  user: { name: "John Doe", age: 30 },
-});
-
-function ReactiveStoreUser() {
-  const store = useReactiveStore();
-  return (
-    <div>
-      <h2>Reactive store user</h2>
-      <p>Name: {store.user.name}, Age: {store.user.age}</p>
-      <Button onClick={() => store.user.name = "Jane Doe"}>Change name</Button>
-      <Button onClick={() => store.user.age++}>Increment age</Button>
-    </div>
-  );
-}
-
 function App() {
 
   const state = useReactive({
@@ -190,13 +173,6 @@ function App() {
         <Button onClick={() => state.count2++}>Increment inputCount2 {state.count2}</Button>
         <DualCounter3 inputCounter1={state.count1} inputCounter2={state.count2} />
         <Examples />
-        <ReactiveStoreProvider >
-          <ReactiveStoreUser />
-          <ReactiveStoreUser />
-          <ReactiveStoreUser />
-          <ReactiveStoreUser />
-          <ReactiveStoreUser />
-        </ReactiveStoreProvider>
       </div>
     </>
   )

@@ -1,5 +1,5 @@
 import React from "react";
-import { useReactive } from "./useReactive";
+import { useReactive, createReactiveStore } from ".";
 
 // Example 1: Simple Counter
 const Counter = () => {
@@ -121,10 +121,10 @@ interface ControlButtonsProps {
 }
 
 const ControlButtons: React.FC<ControlButtonsProps> = ({ onIncrement, onDecrement, incrementLabel, decrementLabel }) => (
-  <div>
-      <button onClick={onIncrement}>{incrementLabel}</button>
-      {onDecrement && <button onClick={onDecrement}>{decrementLabel}</button>}
-  </div>
+    <div>
+        <button onClick={onIncrement}>{incrementLabel}</button>
+        {onDecrement && <button onClick={onDecrement}>{decrementLabel}</button>}
+    </div>
 );
 
 // Child component with useReactive using props
@@ -133,43 +133,72 @@ interface ReactiveChildProps {
 }
 
 const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
-  const state = useReactive(
-      { count: initialCount },
-      function () {
-          console.log("Count changed due to prop update:", this.count);
-      },
-      ["count"]
-  );
+    const state = useReactive(
+        { count: initialCount },
+        function () {
+            console.log("Count changed due to prop update:", this.count);
+        },
+        ["count"]
+    );
 
-  return (
-      <div>
+    return (
+        <div>
             <h3>Reactive Child</h3>
-          <p>Count: {state.count}</p>
-          <ControlButtons 
-              onIncrement={() => state.count++} 
-              incrementLabel="Increment" 
-          />
-      </div>
-  );
+            <p>Count: {state.count}</p>
+            <ControlButtons
+                onIncrement={() => state.count++}
+                incrementLabel="Increment"
+            />
+        </div>
+    );
 };
 
 // Example using ReactiveChild to test prop dependency
 const EffectDependencyExample = () => {
-  const state = useReactive({ count: 0 });
-  
-  return (
-      <div>
+    const state = useReactive({ count: 0 });
+
+    return (
+        <div>
             _________________________________
             <h3>Effect Dependency Example</h3>
-          <p>Parent Count: {state.count}</p>
-          <ControlButtons 
-              onIncrement={() => state.count++} 
-              incrementLabel="Increment Parent" 
-          />
-          <ReactiveChild initialCount={state.count} />
-      </div>
-  );
+            <p>Parent Count: {state.count}</p>
+            <ControlButtons
+                onIncrement={() => state.count++}
+                incrementLabel="Increment Parent"
+            />
+            <ReactiveChild initialCount={state.count} />
+        </div>
+    );
 };
+
+const [ReactiveStoreProvider, useReactiveStore] = createReactiveStore({
+    counter: 0,
+    user: { name: "John Doe", age: 30 },
+});
+
+function ReactiveStoreUser() {
+    const store = useReactiveStore();
+    return (
+        <div>
+            <h2>Reactive store user</h2>
+            <p>Name: {store.user.name}, Age: {store.user.age}</p>
+            <button onClick={() => store.user.name = "Jane Doe"}>Change name</button>
+            <button onClick={() => store.user.age++}>Increment age</button>
+        </div>
+    );
+}
+
+function AnotherReactiveStoreUser() {
+    const store = useReactiveStore();
+    return (
+        <div>
+            <h2>Reactive store user</h2>
+            <p>Name: {store.user.name}, Age: {store.user.age}</p>
+            <button onClick={() => store.user.name = "Jane Doe"}>Change name</button>
+            <button onClick={() => store.user.age++}>Increment age</button>
+        </div>
+    );
+}
 
 // Super Component to Include All Examples
 export const Examples = () => {
@@ -183,6 +212,10 @@ export const Examples = () => {
             <SingleEffectExample />
             <MultipleEffectsExample />
             <EffectDependencyExample />
+            <ReactiveStoreProvider>
+                <ReactiveStoreUser />
+                <AnotherReactiveStoreUser />
+            </ReactiveStoreProvider>
         </div>
     );
 };
