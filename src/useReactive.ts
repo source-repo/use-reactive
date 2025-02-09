@@ -82,20 +82,18 @@ export function useReactive<T extends object>(
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
     }
-    console.log("useReactive called");
-
     const reactiveStateRef = useRef(reactiveState);
     const [, setTrigger] = useState(0); // State updater to trigger re-renders
     const proxyRef = useRef<ReactiveState<T>>(null);
-    const stateMapRef = useRef<WeakMap<object, PropertyMap>>(null);
+    const stateMapRef = useRef<WeakMap<object, PropertyMap>>(new WeakMap());
     //const callbacks: useRef();
 
-    if (!stateMapRef.current) {
-        stateMapRef.current = new WeakMap()
-        const map = new Map();
-        stateMapRef.current.set(reactiveStateRef.current, map);
+    let stateMap = stateMapRef.current.get(reactiveStateRef.current);
+    if (!stateMap) {
+        stateMap = new Map();
+        stateMapRef.current.set(reactiveStateRef.current, stateMap);
     }
-    syncState(stateMapRef.current, reactiveStateRef.current, stateMapRef.current.get(reactiveStateRef.current)!, reactiveState);
+    syncState(stateMapRef.current, reactiveStateRef.current, stateMap!, reactiveState);
 
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
