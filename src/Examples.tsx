@@ -171,6 +171,29 @@ const EffectDependencyExample = () => {
     );
 };
 
+// Example using ReactiveChild to test prop dependency
+const ArrayExample = () => {
+    const state = useReactive({ 
+        todos: ['hello'],
+        addWorld() {
+            this.todos = [...this.todos, ' world'];
+        },
+        addExclamation() {
+            this.todos.push('!');
+        }
+    });
+
+    return (
+        <div>
+            _________________________________
+            <h3>Array Example</h3>
+            <p>todos: {state.todos.map(todo => todo)}</p>
+            <button onClick={state.addWorld}>Add world</button>
+            <button onClick={state.addExclamation}>Add !</button>
+        </div>
+    );
+};
+
 const [ReactiveStoreProvider, useReactiveStore] = createReactiveStore({
     counter: 0,
     user: { name: "John Doe", age: 30 },
@@ -216,6 +239,7 @@ export const Examples = () => {
                 <ReactiveStoreUser />
                 <AnotherReactiveStoreUser />
             </ReactiveStoreProvider>
+            <ArrayExample />
         </div>
     );
 };
