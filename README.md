@@ -46,6 +46,16 @@ Use directly in markup:
 
 https://stackblitz.com/edit/vitejs-vite-mcpb2gpf?file=src%2FApp.tsx
 
+## Contents
+
+  - [Installation](#installation)
+  - [Basic Usage](#basic-usage)
+  - [useReactive API](#usereactive-api)
+  - [Examples](#examples)
+  - [createReactiveStore](#createreactivestore)
+  - [Contributions](#contributions)
+  - [License](#license)
+
 ## Installation
 
 
@@ -118,6 +128,15 @@ where `type EffectFunction<T> = (this: T, state: T) => void | (() => void);`
 - A state object wrapped by a Proxy that updates the React state reactively when its properties change.
 
 ## Examples
+
+  - [Using components props and other data](#using-components-props-and-other-data)
+  - [Simple counter](#simple-counter)
+  - [Array values](#array-values)
+  - [Computed property](#computed-property)
+  - [Async state update](#async-state-update)
+  - [Nested state](#nested-state)
+  - [Single effect](#single-effect)
+  - [Multiple effects](#multiple-effects)
 
 ### Using components props and other data
 
