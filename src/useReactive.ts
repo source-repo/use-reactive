@@ -1,25 +1,86 @@
 import { useState, useRef, useEffect } from "react";
 
-declare global {
-    interface ImportMeta {
-        readonly env?: {
-            MODE?: string;
-        };
-    }
-}
-
+// Reactive state type
 type ReactiveState<T> = T & { init?: () => void };
 
+// Effect function type
 type EffectFunction<T> = (this: T, state: T) => void | (() => void);
 
 /**
- * Map structure for storing state and setState hooks for each property
+ * Map for storing data about each property
  * key: Property key
- * value: [state, setState, updateFlag, childMap, propValue]
+ * value: [updateFlag, childMap, propValue]
  * 
  * The updateFlag is used to track changes in the property value done via the proxy (as opposed to from props).
  */
-type UseStateMap = Map<string | number | symbol, [any, React.Dispatch<React.SetStateAction<any>> | undefined, boolean, UseStateMap | undefined, any]>;
+type PropertyMap = Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>;
+
+function isEqual(x: any, y: any): boolean {
+    const ok = Object.keys, tx = typeof x, ty = typeof y;
+    return x && y && tx === 'object' && tx === ty ? (
+        ok(x).length === ok(y).length &&
+        ok(x).every(key => isEqual(x[key], y[key]))
+    ) : (x === y);
+}
+
+// Recursively creates and updates a structure of info about each property.
+const mapProperties = <T extends object>(stateMapRef: WeakMap<object, PropertyMap>, obj: T, stateMap: PropertyMap, newObj?: T): void => {
+    Object.keys(obj).forEach((keyAny) => {
+        const key = keyAny as keyof T
+        const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+        const isFunction = (descriptor && descriptor.value && typeof descriptor.value === "function");
+        const isGetter = (descriptor && descriptor.get && typeof descriptor.get === "function");
+        if (!isFunction && !isGetter) {
+            if (typeof obj[key] !== "object" || Array.isArray(obj[key])) {
+                if (typeof obj[key] === "function") return;
+                const [modifiedFlag, , lastPropValue] = stateMap.get(key) || [undefined, undefined, false];
+                let propValue = newObj ? newObj[key] : obj[key];
+
+                const propValueChanged = !isEqual(lastPropValue, propValue);
+                if ((!modifiedFlag || propValueChanged) && newObj && obj[key] !== propValue) {
+                    obj[key] = propValue;
+                }
+                stateMap.set(key, [modifiedFlag!, undefined, propValue]);
+            } else {
+                let childStateMap: PropertyMap | undefined;
+                if (!stateMap.has(key)) {
+                    childStateMap = new Map();
+                    stateMap.set(key, [false, childStateMap, obj[key]]);
+                } else {
+                    childStateMap = stateMap.get(key)![1];
+                }
+                stateMapRef.set(obj[key] as T, childStateMap!);
+                if (childStateMap)
+                    mapProperties(stateMapRef, obj[key] as T, childStateMap, newObj ? newObj[key] as T : undefined);
+            }
+        }
+    });
+};
+
+/**
+ * Synchronize the existing state methods with the new state object.
+ * This also adds and remove functions during hot reloads.
+ */
+const syncState = <T>(target: ReactiveState<T>, newObj: ReactiveState<T>) => {
+    Object.keys(target).forEach((key) => {
+        if (!(key in newObj)) {
+            delete target[key as keyof T];
+        }
+    });
+    Object.keys(newObj).forEach((keyAny) => {
+        const key = keyAny as keyof T
+        const descriptor = Object.getOwnPropertyDescriptor(newObj, key);
+        if (descriptor) {
+            const isFunction = (descriptor && descriptor.value && typeof descriptor.value === "function");
+            const isGetter = (descriptor && descriptor.get && typeof descriptor.get === "function");
+            if (isFunction || isGetter) {
+                Object.defineProperty(target, key, descriptor);
+            }
+        } else if (typeof newObj[key] === "object" && !Array.isArray(newObj[key]) && newObj[key] !== null) {
+            syncState(target[key] as ReactiveState<T>, newObj[key] as ReactiveState<T>);
+        }
+    });
+};
 
 /**
  * useReactive - A custom React hook that creates a reactive state object.
@@ -46,86 +107,20 @@ export function useReactive<T extends object>(
     const reactiveStateRef = useRef(reactiveState);
     const [, setTrigger] = useState(0); // State updater to trigger re-renders
     const proxyRef = useRef<T>(null);
-    const getterCache = useRef<Map<keyof T, T[keyof T]>>(new Map()); // Cache for computed property values
     const proxyCache = new WeakMap<object, any>();
     const boundFunctions = new WeakMap<Function, Function>();
-    const stateMapRef = useRef<WeakMap<object, UseStateMap>>(null);
+    const stateMapRef = useRef<WeakMap<object, PropertyMap>>(null);
 
-    // Recursively creates a structure of useState hooks for each property.
-    const initializeState = <T extends object>(obj: T, stateMap: UseStateMap, newObj?: T): void => {
-        Object.keys(obj).forEach((keyAny) => {
-            const key = keyAny as keyof T
-            if (typeof obj[key] !== "object" || Array.isArray(obj[key])) {
-                if (typeof obj[key] === "function") return;
-                const [state, setState] = useState(obj[key]);
-                const [, , modifiedFlag, , lastPropValue] = stateMap.get(key) || [undefined, undefined, false];
-                let propValue = newObj ? newObj[key] : state;
-
-                function isEqual(x: any, y: any): boolean {
-                    const ok = Object.keys, tx = typeof x, ty = typeof y;
-                    return x && y && tx === 'object' && tx === ty ? (
-                        ok(x).length === ok(y).length &&
-                        ok(x).every(key => isEqual(x[key], y[key]))
-                    ) : (x === y);
-                }
-                const propValueChanged = !isEqual(lastPropValue, propValue);
-                if ((!modifiedFlag || propValueChanged) && newObj && newObj[key] !== state) {
-                    setState(propValue);
-                }
-                stateMap.set(key, [state, setState, modifiedFlag, undefined, propValue]);
-            } else {
-                let childStateMap: UseStateMap | undefined;
-                if (!stateMap.has(key)) {
-                    childStateMap = new Map();
-                    stateMap.set(key, [undefined, undefined, false, childStateMap, obj[key]]);
-                } else {
-                    childStateMap = stateMap.get(key)![3];
-                }
-                stateMapRef.current?.set(obj[key] as T, childStateMap!);
-                initializeState(obj[key] as T, childStateMap!, newObj ? newObj[key] as T : undefined);
-            }
-        });
-    };
     if (!stateMapRef.current) {
         stateMapRef.current = new WeakMap()
         const map = new Map();
         stateMapRef.current.set(reactiveStateRef.current, map);
-        initializeState(reactiveStateRef.current, map, reactiveState);
+        mapProperties(stateMapRef.current, reactiveStateRef.current, map, reactiveState);
     } else {
-        initializeState(reactiveStateRef.current, stateMapRef.current.get(reactiveStateRef.current)!, reactiveState);
+        mapProperties(stateMapRef.current, reactiveStateRef.current, stateMapRef.current.get(reactiveStateRef.current)!, reactiveState);
     }
 
-    /**
-     * HMR synchronizs the existing state with a new state object.
-     * This is used to add and remove functions during hot reloads.
-     */
-    const syncState = (target: ReactiveState<T>, newObj: ReactiveState<T>) => {
-        Object.keys(target).forEach((key) => {
-            if (!(key in newObj)) {
-                delete target[key as keyof T];
-            }
-        });
-        Object.keys(newObj).forEach((keyAny) => {
-            const key = keyAny as keyof T
-            if (typeof newObj[key] === "function") {
-                target[key] = newObj[key];
-            } else if (typeof newObj[key] === "object" && !Array.isArray(newObj[key]) && newObj[key] !== null) {
-                syncState(target[key] as ReactiveState<T>, newObj[key] as ReactiveState<T>);
-            }
-        });
-    };
-
-    const isDev =
-        (typeof process !== "undefined" && (
-            process.env?.NODE_ENV === "development" ||    // Webpack, general Node.js apps
-            process.env?.NEXT_PUBLIC_ENV === "development" || // Next.js
-            process.env?.VITE_ENV === "development" // Vite
-        )) ||
-        (typeof import.meta !== "undefined" && import.meta.env?.MODE === "development"); // Vite & other modern ESM-based bundlers
-
-    if (isDev) {
-        syncState(reactiveStateRef.current, reactiveState);
-    }
+    syncState(reactiveStateRef.current, reactiveState);
 
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
@@ -137,17 +132,19 @@ export function useReactive<T extends object>(
             const proxy = new Proxy(target, {
                 get(obj, prop: string | symbol) {
                     const key = prop as keyof T;
-                    const stateMap = stateMapRef.current?.get(obj);
-                    let value: any
-                    const [savedValue, , , map] = stateMap?.has(prop as keyof T) ? stateMap.get(prop as keyof T)! : [obj[key]];
-                    if (!map) {
-                        value = savedValue;
-                    } else {
-                        value = obj[key];
+
+                    // Handle computed properties (getters)
+                    const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+                    if (descriptor && typeof descriptor.get === "function") {
+                        const newValue = descriptor.get.call(proxy);
+                        return newValue;
                     }
 
-                    // Proxy arrays         
+                    let value: any
+                    value = obj[key];
+
                     /*         
+                    // Proxy arrays to trigger updates on mutating methods
                     if (Array.isArray(value)) {
                         return new Proxy(value, {
                             get(arrTarget, arrProp) {
@@ -170,14 +167,6 @@ export function useReactive<T extends object>(
                         });
                     }
                     */
-
-                    // Handle computed properties (getters)
-                    const descriptor = Object.getOwnPropertyDescriptor(obj, key);
-                    if (descriptor && typeof descriptor.get === "function") {
-                        const newValue = descriptor.get.call(proxy);
-                        getterCache.current.set(key, newValue);
-                        return newValue;
-                    }
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
@@ -203,12 +192,11 @@ export function useReactive<T extends object>(
                 set(obj, prop: string | symbol, value) {
                     const stateMap = stateMapRef.current?.get(obj);
                     if (!stateMap?.has(prop as keyof T)) return false;
-                    const [state, setState, , map, propValue] = stateMap.get(prop as keyof T)!;
-                    if (state !== value) {
-                        stateMap.set(prop as keyof T, [value, setState, true, map, propValue]);
-                        if (setState) {
-                            setState(value);
-                        }
+                    const [, map, propValue] = stateMap.get(prop as keyof T)!;
+                    if (obj[prop as keyof T] !== value) {
+                        stateMap.set(prop as keyof T, [true, map, propValue]);
+                        obj[prop as keyof T] = value;
+                        setTrigger((prev) => prev + 1);
                     }
                     return true;
                 },
@@ -226,6 +214,14 @@ export function useReactive<T extends object>(
 
     // useEffect to handle side effects and cleanup
     if (effect) {
+        function getNestedValue<T>(obj: unknown, path?: string): T | undefined {
+            return path ? path.split('.').reduce<any>((acc, key) =>
+                acc && acc[key.match(/^\d+$/) ? Number(key) : key], obj) : undefined;
+        }
+        function getDeps(deps?: unknown[]): unknown[] | undefined {
+            if (!deps) return undefined;
+            return deps.map(prop => (typeof prop === 'symbol') ? getNestedValue(reactiveStateRef.current!, prop.description) : prop);
+        }
         if (typeof effect === "function") {
             // Single effect function
             useEffect(() => {
@@ -236,7 +232,7 @@ export function useReactive<T extends object>(
                 return () => {
                     if (cleanup) cleanup();
                 };
-            }, deps);
+            }, getDeps(deps));
         } else if (Array.isArray(effect)) {
             // Multiple effect/dependency pairs
             effect.forEach(([effectF, effectDeps]) => {
@@ -248,29 +244,11 @@ export function useReactive<T extends object>(
                     return () => {
                         if (cleanup) cleanup();
                     };
-                }, effectDeps);
+                }, getDeps(effectDeps));
             });
         }
     }
 
-    useEffect(() => {
-        // Check for changes in computed properties (getters) and trigger a re-render if needed
-        let hasChanged = false;
-        getterCache.current.forEach((prevValue, key) => {
-            const descriptor = Object.getOwnPropertyDescriptor(reactiveStateRef, key);
-            if (descriptor && typeof descriptor.get === "function") {
-                const newValue = descriptor.get.call(proxyRef.current);
-                if (prevValue !== newValue) {
-                    hasChanged = true;
-                    getterCache.current.set(key, newValue);
-                }
-            }
-        });
-
-        if (hasChanged) {
-            setTrigger((prev) => prev + 1);
-        }
-    });
-
+    // Return the reactive proxy object
     return proxyRef.current;
 }
