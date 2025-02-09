@@ -254,12 +254,30 @@ export const SubscribedCounter = () => {
     );
 };
 
+const SubscribedCounter2 = () => {
+    const [state] = useReactive({
+        count: 0,
+    },
+    function (state, subscribe) {
+        subscribe(() => [state.count], (key, value, previous) => {
+            console.log(`${key} changed from ${previous} to ${value}`);
+        });    
+    });
+    return (
+        <div>
+            <h3>Subscribed Counter2</h3>
+            <p>Count: {state.count}</p>
+            <button onClick={() => state.count++}>Increment</button>
+            <button onClick={() => state.count--}>Decrement</button>
+        </div>
+    );
+};
+
 // Super Component to Include All Examples
 export const Examples = () => {
     return (
         <div>
             <h2>useReactive Examples</h2>
-            <SubscribedCounter />
             <Counter />
             <ComputedPropertyExample />
             <AsyncExample />
@@ -272,6 +290,8 @@ export const Examples = () => {
                 <AnotherReactiveStoreUser />
             </ReactiveStoreProvider>
             <ArrayExample />
+            <SubscribedCounter />
+            <SubscribedCounter2 />
         </div>
     );
 };

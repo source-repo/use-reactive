@@ -344,4 +344,20 @@ describe("createReactiveStore", () => {
     expect(result.current[0].count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
+  it("should trigger a callback from init function when a given property updates", () => {
+    const effectMock = vi.fn();
+    const { result, rerender } = renderHook(() => useReactive(
+      { count: 0 
+
+      },
+      function (state, subscribe) {
+        subscribe(() => [this.count], () => effectMock(1));
+      }
+    ));
+    act(() => {      
+      result.current[0].count++;
+    });
+    expect(result.current[0].count).toBe(1);
+    expect(effectMock).toHaveBeenCalledWith(1);
+  });
 });

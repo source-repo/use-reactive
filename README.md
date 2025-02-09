@@ -8,8 +8,10 @@
 
 `useReactive` is a custom React hook that provides a reactive state object. Methods on the state object use `this` to access members, enabling OOP-style encapsulation of data and behavior. There is also a companion React context for sharing a reactive state within a component hierarchy, see [createReactiveStore](#createReactiveStore) below.
 
+**NOTE:** Upgrade from v1 to v2: useReactive now returns a tuple with the reactive object and a subscribe function. Simply change `const state = useReactive({})` to `const [state] = useReactive({})`, disregarding the new subscribe function.
+
 ```tsx
-const state = useReactive(
+const [state] = useReactive(
   {
     count: 0,
     increment() {
@@ -77,7 +79,7 @@ yarn add @diginet/use-reactive
 import { useReactive } from "@diginet/use-reactive";
 
 function ExampleComponent() {
-  const state = useReactive({
+  const [state] = useReactive({
     count: 0,
     increment() {
       this.count++;
@@ -97,7 +99,7 @@ Note: The function `increment` above can be declared without the `function` keyw
 
 ###### JavaScript (TL;DR)
 
-`useReactive(state, effectOrEffects, ...deps)`
+`const [state] = useReactive(state, effectOrEffects, ...deps)`
 
 - `state`: The state object with properties and methods bound to `this`.
 - `init?`: A function to run only once.
@@ -107,18 +109,18 @@ Note: The function `increment` above can be declared without the `function` keyw
 ###### TypeScript
 
 ```typescript
-useReactive<T extends object>(
+const [state, subscribe] = useReactive<T extends object>(
     reactiveState: T,
-    init?: (this: R<T>, state: R<T>) => void,
+    init?: (this: T, state: T, subscribe: S<T>) => void,
     effect?: E<T> | Array<[E<T>, unknown[]]>,
     deps?: unknown[]
-): R<T>
+): [T, subscribe: (targets: () => unknown | unknown[], callback: C<T>) => () => void]
 ```
 
 #### Parameters:
 
 - `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
-- `init(state)`: Function to  runs once only.
+- `init(state, subscribe)`: Function to  runs once only.
 - `effectOrEffects(state)?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
   - Optionally this can be an array of effect and dependency pairs: [ [`function foo1 {}`, [`dep1`] ], [`function foo2 {}`, [`dep2`] ] ]
 
@@ -126,8 +128,9 @@ useReactive<T extends object>(
 
 #### Returns:
 
-- A state object wrapped by a Proxy that updates the React state reactively when its properties change.
-  - `subscribe(targets, callback)`: Subscribe to property changes.
+- A tuple:
+  - `[0]`: The state object wrapped by a Proxy that updates the React state reactively when its properties change.
+  - `[1]`: A function for subscribing to property changes.
 
 
 ## Examples
@@ -140,6 +143,7 @@ useReactive<T extends object>(
   - [Nested state](#nested-state)
   - [Single effect](#single-effect)
   - [Multiple effects](#multiple-effects)
+  - [Subscribe](#subscribe)
 
 ### Using components props and other data
 
@@ -148,7 +152,7 @@ Props passed to a component can be used directly by methods on the `useReactive`
 ```tsx
 const Sum = ({ value }: { value: number }) => {
   const [someState, setSomeState] = useState(0)
-  const state = useReactive({ 
+  const [state] = useReactive({ 
       initial: 100,
       get sum() {
           return this.initial + value + someState;
@@ -164,7 +168,7 @@ const Sum = ({ value }: { value: number }) => {
 };
 
 const TestSum = () => {
-  const state = useReactive({ value: 0 });
+  const [state] = useReactive({ value: 0 });
   return <div>
       <Sum value={ state.value } />
       <button onClick={() => state.value++ }>Increment value</button>
@@ -178,7 +182,7 @@ const TestSum = () => {
 
 ```tsx
 const Counter = () => {
-    const state = useReactive({ count: 0 });
+    const [state] = useReactive({ count: 0 });
 
     return (
         <div>
@@ -197,7 +201,7 @@ const Counter = () => {
 
 ```tsx
 const ArrayExample = () => {
-    const state = useReactive({ 
+    const [state] = useReactive({ 
         todos: ['hello'],
         addWorld() {
             this.todos = [...this.todos, ' world'];
@@ -225,7 +229,7 @@ const ArrayExample = () => {
 
 ```tsx
 const ComputedPropertyExample = () => {
-    const state = useReactive({
+    const [state] = useReactive({
         count: 2,
         get double() {
             return this.count * 2;
@@ -249,7 +253,7 @@ const ComputedPropertyExample = () => {
 
 ```tsx
 const AsyncExample = () => {
-    const state = useReactive({
+    const [state] = useReactive({
         count: 0,
         async incrementAsync() {
             await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -273,7 +277,7 @@ const AsyncExample = () => {
 
 ```tsx
 const NestedStateExample = () => {
-    const state = useReactive({
+    const [state] = useReactive({
         nested: { value: 10 },
     });
 
@@ -294,7 +298,7 @@ const NestedStateExample = () => {
 
 ```tsx
 const SingleEffectExample = () => {
-    const state = useReactive(
+    const [state] = useReactive(
         { count: 0 },
         function () {
             console.log("Count changed:", this.count);
@@ -318,7 +322,7 @@ const SingleEffectExample = () => {
 
 ```tsx
 const MultipleEffectsExample = () => {
-    const state = useReactive(
+    const [state] = useReactive(
         { count: 0, text: "Hello" },
         [
             [function () { console.log("Count changed:", this.count); }, []],
@@ -334,6 +338,31 @@ const MultipleEffectsExample = () => {
             <p>Text: {state.text}</p>
             <button onClick={() => state.count++}>Increment Count</button>
             <button onClick={() => (state.text = "World")}>Change Text</button>
+        </div>
+    );
+};
+```
+
+
+
+### Subscribe
+
+```tsx
+const SubscribedCounter = () => {
+    const [state, subscribe] = useReactive({
+        count: 0,
+    }, 
+    function (state, subscribe) {
+        subscribe(() => [this.count], (key, value, previous) => {
+            console.log(`${key} changed from ${previous} to ${value}`);
+        });
+    });
+    return (
+        <div>
+            <h3>Subscribed Counter</h3>
+            <p>Count: {state.count}</p>
+            <button onClick={() => state.count++}>Increment</button>
+            <button onClick={() => state.count--}>Decrement</button>
         </div>
     );
 };
