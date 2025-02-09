@@ -4,6 +4,30 @@ import { Button } from "@/components/ui/button.jsx";
 import './App.css'
 import { useReactive } from "./symlink/useReactive.js";
 
+const Sum = ({ value }: { value: number }) => {
+  const [someState, setSomeState] = useState(0)
+  const state = useReactive({ 
+      initial: 100,
+      get sum() {
+          return this.initial + value + someState;
+      }
+  });
+  return (
+      <div>
+          <h3>Sum example</h3>
+          <p>Sum: { state.sum }</p>
+	      <button onClick={() => setSomeState(someState + 2) }>Increase someState</button>
+      </div>
+  );
+};
+
+const TestSum = () => {
+  const state = useReactive({ value: 0 });
+  return <div>
+      <Sum value={ state.value } />
+      <button onClick={() => state.value++ }>Increment value</button>
+  </div>
+}
 
 const Counter1 = memo(({ label, count, onIncrement }: { label: string; count: number; onIncrement: () => void }) => {
   console.log(`${label} re-rendered 1`);
@@ -65,15 +89,17 @@ type DualCounter3Props = {
   inputCounter2?: number;
 };
 
-export function DualCounter3({ inputCounter1 = 55, inputCounter2 = 0 }: DualCounter3Props) {
+export function DualCounter3({ inputCounter1 = 0, inputCounter2 = 0 }: DualCounter3Props) {
   const state = useReactive({
+    inputCounter1,
+    inputCounter2,
     count1: 0,
     count2: 0,
     get getCount1() {
       return this.count1 + inputCounter1;
     },
     get getCount2() {
-      return this.count2 + inputCounter2;
+      return this.count2 + this.inputCounter2;
     }
   });
 
@@ -99,8 +125,9 @@ function App() {
   return (
     <>
       <div>
-        <Button onClick={() => state.count1++}>Increment inputCount1</Button>
-        <Button onClick={() => state.count2++}>Increment inputCount2</Button>
+        <TestSum />
+        <Button onClick={() => state.count1++}>Increment inputCount1 {state.count1}</Button>
+        <Button onClick={() => state.count2++}>Increment inputCount2 {state.count2}</Button>
         <DualCounter3 inputCounter1={state.count1} inputCounter2={state.count2} />
         <Examples />
       </div>
