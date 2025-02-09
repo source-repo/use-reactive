@@ -24,7 +24,7 @@ function isEqual(x: any, y: any): boolean {
 }
 
 // Recursively creates and updates a structure of info about each property.
-const mapProperties = <T extends object>(stateMapRef: WeakMap<object, PropertyMap>, obj: T, stateMap: PropertyMap, newObj?: T): void => {
+const syncState = <T extends object>(stateMapRef: WeakMap<object, PropertyMap>, obj: T, stateMap: PropertyMap, newObj?: T): void => {
     Object.keys(obj).forEach((keyAny) => {
         const key = keyAny as keyof T
         const descriptor = Object.getOwnPropertyDescriptor(obj, key);
@@ -51,33 +51,10 @@ const mapProperties = <T extends object>(stateMapRef: WeakMap<object, PropertyMa
                 }
                 stateMapRef.set(obj[key] as T, childStateMap!);
                 if (childStateMap)
-                    mapProperties(stateMapRef, obj[key] as T, childStateMap, newObj ? newObj[key] as T : undefined);
+                    syncState(stateMapRef, obj[key] as T, childStateMap, newObj ? newObj[key] as T : undefined);
             }
-        }
-    });
-};
-
-/**
- * Synchronize the existing state methods with the new state object.
- * This also adds and remove functions during hot reloads.
- */
-const syncState = <T>(target: ReactiveState<T>, newObj: ReactiveState<T>) => {
-    Object.keys(target).forEach((key) => {
-        if (!(key in newObj)) {
-            delete target[key as keyof T];
-        }
-    });
-    Object.keys(newObj).forEach((keyAny) => {
-        const key = keyAny as keyof T
-        const descriptor = Object.getOwnPropertyDescriptor(newObj, key);
-        if (descriptor) {
-            const isFunction = (descriptor && descriptor.value && typeof descriptor.value === "function");
-            const isGetter = (descriptor && descriptor.get && typeof descriptor.get === "function");
-            if (isFunction || isGetter) {
-                Object.defineProperty(target, key, descriptor);
-            }
-        } else if (typeof newObj[key] === "object" && !Array.isArray(newObj[key]) && newObj[key] !== null) {
-            syncState(target[key] as ReactiveState<T>, newObj[key] as ReactiveState<T>);
+        } else {
+            Object.defineProperty(obj, key, descriptor);
         }
     });
 };
@@ -115,12 +92,8 @@ export function useReactive<T extends object>(
         stateMapRef.current = new WeakMap()
         const map = new Map();
         stateMapRef.current.set(reactiveStateRef.current, map);
-        mapProperties(stateMapRef.current, reactiveStateRef.current, map, reactiveState);
-    } else {
-        mapProperties(stateMapRef.current, reactiveStateRef.current, stateMapRef.current.get(reactiveStateRef.current)!, reactiveState);
     }
-
-    syncState(reactiveStateRef.current, reactiveState);
+    syncState(stateMapRef.current, reactiveStateRef.current, stateMapRef.current.get(reactiveStateRef.current)!, reactiveState);
 
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
