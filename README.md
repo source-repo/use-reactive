@@ -99,7 +99,7 @@ Note: The function `increment` above can be declared without the `function` keyw
 
 ###### JavaScript (TL;DR)
 
-`const [state] = useReactive(state, effectOrEffects, ...deps)`
+`const [state, subscribe] = useReactive(state, effectOrEffects, ...deps)`
 
 - `state`: The state object with properties and methods bound to `this`.
 - `init?`: A function to run only once.
