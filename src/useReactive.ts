@@ -16,6 +16,25 @@ type Subscriber<T> = {
     }[]
 };
 
+type HE<T> = {
+    id: string;
+    timestamp: number;
+    key: keyof T;
+    previous: unknown;
+    value: unknown;
+};
+
+type H<T> = {
+    enable(enabled?: boolean): boolean;
+    undo(index?: number):  void;
+    redo(all?: boolean): void;
+    revert (index: number): void;
+    snapshot(): string | null;
+    restore(id: string | null): void;
+    clear(): void;
+    entries: HE<T>[];
+};
+
 /**
  * Map for storing data about each property
  * key: Property key
@@ -86,7 +105,7 @@ export function useReactive<T extends object>(
     init?: (this: T, state: T, subscribe: S<T>) => void,
     effect?: E<T> | Array<[E<T>, unknown[]]>,
     deps?: unknown[]
-): [T, S<T>] {
+): [T, S<T>, H<T>] {
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
     }
@@ -95,6 +114,9 @@ export function useReactive<T extends object>(
     const proxyRef = useRef<T>(null);
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(new WeakMap());
     const subscribersRef = useRef<Array<Subscriber<T>>>([]);
+    const history = useRef<HE<T>[]>([]);
+    const historyEnabled = useRef<boolean>(false);
+    const redoStack = useRef<HE<T>[]>([]);
 
     let stateMap = stateMapRef.current.get(reactiveStateRef.current);
     if (!stateMap) {
@@ -104,7 +126,7 @@ export function useReactive<T extends object>(
     syncState(stateMapRef.current, reactiveStateRef.current, stateMap!, reactiveState);
 
     function subscribe(targets: () => unknown | unknown[], callback: C<T>) {
-        let result = () => {};
+        let result = () => { };
         if (subscribersRef.current && targets) {
             const subscriber: Subscriber<T> = {
                 callback,
@@ -206,6 +228,9 @@ export function useReactive<T extends object>(
                     if (!isEqual(previousValue, value)) {
                         stateMap.set(prop as keyof T, [true, map, propValue]);
                         obj[prop as keyof T] = value;
+                        if (historyEnabled.current) {
+                            history.current.push({ id: crypto.randomUUID(), key: prop as keyof T, previous: previousValue, value, timestamp: Date.now() });
+                        }
                         setTrigger((prev) => prev + 1);
                     }
                     if (subscribersRef.current) {
@@ -267,6 +292,87 @@ export function useReactive<T extends object>(
         }
     }
 
+    const enableHistory = (enabled?: boolean) => {
+        if (enabled !== undefined)
+            historyEnabled.current = enabled;
+        return historyEnabled.current;
+    };
+
+    const undoLast = () => {
+        if (history.current.length === 0) return;
+        const lastChange = history.current.pop();
+        if (lastChange !== undefined) {
+            redoStack.current.push({ id: lastChange.id, key: lastChange.key, previous: lastChange.previous, value: lastChange.value, timestamp: lastChange.timestamp });
+            const savedHistoryEnabled = historyEnabled.current;
+            enableHistory(false);
+            (proxyRef.current as any)[lastChange.key] = lastChange.previous;
+            enableHistory(savedHistoryEnabled)
+        }
+    };
+
+    const undo = (index?: number) => {
+        if (index !== undefined && (index < 0 || index >= history.current.length)) return;
+        if (index !== undefined) {
+            while (history.current.length > index) {
+                undoLast();
+            }
+        } else {
+            undoLast();
+        }
+    };
+
+    const redo = (all?: boolean) => {
+        if (redoStack.current.length === 0) return;
+        do {
+            const redoChange = redoStack.current.pop();
+            if (redoChange) {
+                (proxyRef.current as any)[redoChange.key] = redoChange.value;
+            }
+        } while (all && redoStack.current.length > 0);
+    };
+
+    const revert = (index: number) => {
+        if (index < 0 || index >= history.current.length) return;
+        const entry = history.current[index];
+        if (entry) {
+            const savedHistoryEnabled = historyEnabled.current;
+            enableHistory(false);
+            (proxyRef.current as any)[entry.key] = entry.previous;
+            enableHistory(savedHistoryEnabled)
+            history.current.splice(index, 1);
+        }
+    };
+
+    const clear = () => {
+        history.current = []
+        redoStack.current = []
+        setTrigger((prev) => prev + 1);
+    }
+
+    const snapshot = () => {
+        return history.current.length > 0 ? history.current[history.current.length - 1].id : null;
+    };
+
+    const restore = (id: string | null) => {
+        let index
+        if (id === null) {
+            index = 0;
+        } else {
+            index = history.current.findIndex(entry => (entry.id === id));
+        }
+        if (index < 0) return;
+        redoStack.current = [];
+        if (id !== null) {
+            while (history.current.length > index + 1) {
+                undo();
+            }
+        } else {
+            while (history.current.length > 0) {
+                undo();
+            }
+        }
+    };
+
     // Return the reactive proxy object
-    return [proxyRef.current, subscribe] as const;
+    return [proxyRef.current, subscribe, { enable: enableHistory, clear, undo, redo, revert, snapshot, restore, entries: history.current }] as const;
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useReactive } from "./useReactive.js";
 import { createReactiveStore } from "./useReactiveStore.js";
 
@@ -274,11 +274,86 @@ const SubscribedCounter2 = () => {
     );
 };
 
+const ReactiveHistoryExample = () => {
+    const [state, , history] = useReactive({ text1: "", text2: "" });
+    const [historyEnabled, setHistoryEnabled] = useState(false);
+    const [snapshot, setSnapshot] = useState<string | null | undefined>(undefined);
+
+    return (
+        <div>
+            <h2>History</h2>
+            <input
+                type="text"
+                value={state.text1}
+                onChange={(e) => (state.text1 = e.target.value)}
+            />
+            <p />
+            <input
+                type="text"
+                value={state.text2}
+                onChange={(e) => (state.text2 = e.target.value)}
+            />
+            <br />
+            <label>
+                <input
+                    type="checkbox"
+                    checked={historyEnabled}
+                    onChange={(e) => {
+                        setHistoryEnabled(e.target.checked);
+                        history.enable(e.target.checked);
+                    }}
+                />
+                Enable History
+            </label>
+            <br />
+            <button onClick={() => history.undo()} disabled={!historyEnabled}>Undo</button>
+            <button onClick={() => history.undo(0)} disabled={!historyEnabled}>Undo all</button>
+            <button onClick={() => history.redo()} disabled={!historyEnabled}>Redo</button>
+            <button onClick={() => history.redo(true)} disabled={!historyEnabled}>Redo all</button>
+            <button onClick={() => history.clear()} disabled={!historyEnabled}>Clear</button>
+            <p />
+            <button onClick={() => setSnapshot(history.snapshot())} disabled={!historyEnabled}>Take snapshot</button>
+            <button onClick={() => history.restore(snapshot!)} disabled={snapshot === undefined || !historyEnabled}>
+                Restore snapshot
+            </button>
+            <h3>Changes:</h3>
+            <ul>
+                {history.entries.map((entry, index) => (
+                    <div key={index} style={{ display: 'flex' }}>
+                        <li key={entry.id}>
+                            [{new Date(entry.timestamp).toLocaleTimeString()}]&nbsp;
+                            {entry.key}&nbsp;
+                            "{entry.previous as any}" → "{entry.value}"&nbsp;
+                            <button onClick={() => history.revert(index)}>Revert</button>&nbsp;
+                            <button onClick={() => history.undo(index)}>Rollback</button>
+                        </li>
+                    </div>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+const ExampleComponent = () => {
+    const [state, , history] = useReactive({ count: 0 });
+    history.enable(true);
+    return (
+        <div>
+            <h2>Count: {state.count}</h2>
+            <button onClick={() => state.count++}>Increment</button>
+            <button onClick={() => history.undo()}>Undo</button>
+            <button onClick={() => history.redo()}>Redo</button>
+        </div>
+    );
+};
+
 // Super Component to Include All Examples
 export const Examples = () => {
     return (
         <div>
             <h2>useReactive Examples</h2>
+            <ReactiveHistoryExample />
+            <ExampleComponent />
             <Counter />
             <ComputedPropertyExample />
             <AsyncExample />

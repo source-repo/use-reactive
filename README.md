@@ -10,6 +10,8 @@
 
 **NOTE:** Upgrade from v1 to v2: useReactive now returns a tuple with the reactive object and a subscribe function. Simply change `const state = useReactive({})` to `const [state] = useReactive({})`, disregarding the new subscribe function.
 
+**NEW:** Version 2.1 adds [history](#History).
+
 ```tsx
 const [state] = useReactive(
   {
@@ -114,7 +116,7 @@ const [state, subscribe] = useReactive<T extends object>(
     init?: (this: T, state: T, subscribe: S<T>) => void,
     effect?: E<T> | Array<[E<T>, unknown[]]>,
     deps?: unknown[]
-): [T, S<T>]
+): [T, S<T>, H<T>]
 ```
 
 T is the state object, S is a subscribe function and E is an effect function, like React useEffect.
@@ -137,6 +139,7 @@ T is the state object, S is a subscribe function and E is an effect function, li
       - `targets`: A function returning a state property or an array of state properties to subscribe to.
       - `callback`: A callback function `(this: T, key: keyof T, value: unknown, previous: unknown)`
     - Returns an unsubscribe function
+  - [2]: A `history` interface with undo, redo, revert any previous change, and rollback to any previous state. See [history](#History) below.
 
 
 ## Examples
@@ -373,6 +376,54 @@ const SubscribedCounter = () => {
     );
 };
 ```
+
+
+
+## **History**
+
+The `useReactive` hook provides a built-in **history tracking system** that allows you to **undo, revert, and rollback** state changes efficiently.
+
+The history interface is returned as the optional third element of the tuple returned by useReactive.
+
+### **Features**
+
+- **Undo** – Revert all or the last state change.
+- **Redo** – Reapply the last undone state change or all undone changes.
+- **Revert/rollback** – Undo multiple changes.
+- **Snapshot/restore** – Save or restore a point in history.
+
+------
+
+### **Usage example**
+
+```tsx
+const ExampleComponent = () => {
+    const [state, , history] = useReactive({ count: 0 });
+    history.enable(true);
+    return (
+        <div>
+            <h2>Count: {state.count}</h2>
+            <button onClick={() => state.count++}>Increment</button>
+            <button onClick={() => history.undo()}>Undo</button>
+            <button onClick={() => history.redo()}>Redo</button>
+        </div>
+    );
+};
+```
+
+------
+
+### **History API**
+
+| Function                             | Description                                                  |
+| ------------------------------------ | ------------------------------------------------------------ |
+| `enable(enabled?: boolean): boolean` | Enable or disable history tracking (unless `enabled` is left out). Returns current state. |
+| `undo(index?: number): void`         | Undo the last change or up to a given index (0 for all).     |
+| `redo(all?: boolean): void`          | Redo the last undo or all of the saved redo stack.           |
+| `revert(index: number): void`        | Undo a specific change by index.                             |
+| `snapshot(): string | null`          | Save a point in history. Return value `null` signifies the empty state (all saved changes will removed). |
+| `restore(id: string | null): void`   | Restore a saved snapshot.                                    |
+| `clear(): void`                      | Clear the history.                                           |
 
 
 
