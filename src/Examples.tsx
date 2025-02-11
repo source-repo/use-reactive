@@ -352,8 +352,6 @@ export const Examples = () => {
     return (
         <div>
             <h2>useReactive Examples</h2>
-            <ReactiveHistoryExample />
-            <ExampleComponent />
             <Counter />
             <ComputedPropertyExample />
             <AsyncExample />
@@ -368,6 +366,8 @@ export const Examples = () => {
             <ArrayExample />
             <SubscribedCounter />
             <SubscribedCounter2 />
+            <ExampleComponent />
+            <ReactiveHistoryExample />
         </div>
     );
 };
