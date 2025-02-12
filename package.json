@@ -1,6 +1,6 @@
 {
   "name": "@diginet/use-reactive",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "A reactive state management hook for React.",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
