@@ -44,12 +44,12 @@ Use directly in markup:
 - Fine-grained reactivity through direct property access. 
 - **Intellisense** and **type checking** through generics when using TypeScript 
 - Methods on the state object are automatically bound, allowing `this` to be used within them. 
-- A function to run once only may be passed as a second argument.
+- A function to run once only may be defined on the options argument.
 - Supports computed properties (getters). 
 - State changes trigger partial React re-render.
 - Supports **async** methods.
-- Arbitrarily nested state objects
-- Add effect handling like `useEffect`, with additional arguments.
+- Arbitrarily nested reactive state objects
+- Add effect handling like `useEffect` in options.
 - **Subscribe** to property changes.
 - **Undo** changes with history.
 

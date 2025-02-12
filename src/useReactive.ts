@@ -131,8 +131,9 @@ const syncState = <T extends object>(
 
 export interface RO<T> {
     init?: (this: T, state: T, subscribe: S<T>, history: H<T>) => void,
-    effect?: E<T> | Array<[E<T>, (this: T) => unknown[]]>,
+    effect?: E<T>,
     deps?: (this: T, state: T) => unknown[],
+    effects?: Array<[E<T>, (this: T, state: T) => unknown[]]>,
     historySettings?: HistorySettings,
 }
 
@@ -401,7 +402,7 @@ export function useReactive<T extends object>(
     }
 
     // useEffect to handle side effects and cleanup
-    if (options?.effect) {
+    if (options?.effect || options?.effects) {
         function getNestedValue<T>(obj: unknown, path?: string, defaultValue?: T): T | undefined {
             if (!obj || typeof obj !== 'object' || !path) return defaultValue;
         
@@ -417,7 +418,7 @@ export function useReactive<T extends object>(
             if (!deps) return undefined;
             return deps.map(prop => (typeof prop === 'symbol') ? getNestedValue(reactiveStateRef.current!, prop.description) : prop);
         }
-        if (typeof options?.effect === "function") {
+        if (options?.effect) {
             // Single effect function
             useEffect(() => {
                 let cleanup: (() => void) | void;
@@ -428,9 +429,10 @@ export function useReactive<T extends object>(
                     if (cleanup) cleanup();
                 };
             }, options.deps ? getDeps(options.deps.call(reactiveStateRef.current, reactiveStateRef.current)) : []);
-        } else if (Array.isArray(options?.effect)) {
+        }
+        if (options?.effects) {
             // Multiple effect/dependency pairs
-            options?.effect.forEach(([effectF, effectDeps]) => {
+            for (const [effectF, effectDeps] of options.effects) {
                 useEffect(() => {
                     let cleanup: (() => void) | void;
                     if (effectF && proxyRef.current) {
@@ -439,8 +441,8 @@ export function useReactive<T extends object>(
                     return () => {
                         if (cleanup) cleanup();
                     };
-                }, effectDeps ? getDeps(effectDeps.call(reactiveStateRef.current)) : []);
-            });
+                }, effectDeps ? getDeps(effectDeps.call(reactiveStateRef.current, reactiveStateRef.current)) : []);
+            }
         }
     }
 

@@ -101,7 +101,7 @@ const MultipleEffectsExample = () => {
     const [state] = useReactive(
         { count: 0, text: "Hello" },
         {
-            effect: [
+            effects: [
                 [function () { console.log("Count changed:", this.count); }, () => []],
                 [function () { console.log("Text changed:", this.text); }, () => []],
             ]

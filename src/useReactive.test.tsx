@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import { useReactive } from './useReactive.js';
 import { createReactiveStore } from './useReactiveStore.js';
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, beforeAll, beforeEach, vi, test, vitest } from 'vitest';
+import { describe, it, expect, beforeAll, vi, test, vitest } from 'vitest';
 import { TextEncoder, TextDecoder } from 'util';
 
 globalThis.TextEncoder = TextEncoder;
@@ -106,7 +106,7 @@ describe('useReactive with Arrays', () => {
 describe('useReactive init function', () => {
   it('should call init function on creation', () => {
     const initMock = vi.fn();
-    const { result } = renderHook(() =>
+    const { } = renderHook(() =>
       useReactive({
         count: 0,
 
@@ -201,7 +201,7 @@ describe("useReactive Hook", () => {
 
   test("effects run when dependencies change", () => {
     const effectMock = vitest.fn();
-    const { result, rerender } = renderHook(({ propCount }) =>
+    const { rerender } = renderHook(({ propCount }) =>
       useReactive(
         {
           count: propCount,
@@ -237,7 +237,7 @@ test("multiple effects run when dependencies change", () => {
         count2: 33,
       },
       {
-        effect: [
+        effects: [
           [
             function () {
               effectMock1(this.count);
@@ -342,7 +342,7 @@ describe("createReactiveStore", () => {
   });
   it("should trigger a callback when a given property updates", () => {
     const effectMock = vi.fn();
-    const { result, rerender } = renderHook(() => useReactive({ count: 0 }));
+    const { result } = renderHook(() => useReactive({ count: 0 }));
     act(() => {
       result.current[1](() => [result.current[0].count], () => effectMock(1));
       result.current[0].count++;
@@ -353,13 +353,13 @@ describe("createReactiveStore", () => {
   it("should trigger a callback from init function when a given property updates", () => {
     const effectMock = vi.fn();
     let unsubscribe: () => void;
-    const { result, rerender } = renderHook(() => useReactive(
+    const { result } = renderHook(() => useReactive(
       {
         count: 0
 
       },
       {
-        init(state, subscribe) {
+        init(_state, subscribe) {
           unsubscribe = subscribe(() => [this.count], () => effectMock(this.count));
         }
       }
