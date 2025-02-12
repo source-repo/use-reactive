@@ -101,17 +101,17 @@ Note: The function `increment` above can be declared without the `function` keyw
 
 ###### JavaScript (TL;DR)
 
-`const [state, subscribe] = useReactive(state, effectOrEffects, ...deps)`
+`const [state, subscribe, history] = useReactive(state, effect, ...deps)`
 
 - `state`: The state object with properties and methods bound to `this`.
 - `init?`: A function to run only once.
-- `effectOrEffects?`: Effect function OR array of function and dependency function pairs (see deps)). State is supplied as argument (also `this`).
+- `effect?`: Effect function OR array of function and dependency function pairs (see deps)). State is supplied as argument (also `this`).
 - `deps?`: function returning the array of dependencies for a single effect function. Use `this` to reference the reactive object.
 
 ###### TypeScript
 
 ```typescript
-const [state, subscribe] = useReactive<T extends object>(
+const [state, subscribe, history] = useReactive<T extends object>(
     reactiveState: T,
     init?: (this: T, state: T, subscribe: S<T>) => void,
     effect?: E<T> | Array<[E<T>, (this: T) => unknown[]]>,
@@ -124,8 +124,8 @@ T is the state object, S is a subscribe function and E is an effect function, li
 #### Parameters:
 
 - `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
-- `init(state, subscribe)`: Function to  runs once only.
-- `effectOrEffects(state)?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
+- `init?`: Function to  runs once only.
+- `effect?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
   - Optionally this can be an array of effect and function returning dependency pairs (see `deps` below): [ [`function foo1 {}`, function () { return [`dep1`] } ], [`function foo2 {}`, function () { return [`dep2`] } ] ]
 - `deps?`: Function returning the dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function. Use `this` to reference the reactive object.
 
