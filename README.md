@@ -6,11 +6,7 @@
 ```
 # useReactive
 
-`useReactive` is a custom React hook that provides a reactive state object. Methods on the state object use `this` to access members, enabling OOP-style encapsulation of data and behavior. There is also a companion React context for sharing a reactive state within a component hierarchy, see [createReactiveStore](#createReactiveStore) below.
-
-**NOTE:** Upgrade from v1 to v2: useReactive now returns a tuple with the reactive object and a subscribe function. Simply change `const state = useReactive({})` to `const [state] = useReactive({})`, disregarding the new subscribe function. Version 2.1 adds [history](#History).
-
-**NEW:** Version 3.0 now uses a function to return the dependence array for effects. This makes it possible to directly reference properties of the reactive state object using the  `this` keyword.
+`useReactive` is a custom React hook that provides a reactive state object. Methods on this object use `this` to access members, enabling an object-oriented approach to encapsulating data and behavior. You can subscribe to property changes, and state modifications can be saved to a history with support for undo, redo, revert and snapshots. Additionally, a companion React context is available for sharing reactive state across a component hierarchy—see [createReactiveStore](#createReactiveStore) below.
 
 ```tsx
 const [state] = useReactive(
@@ -47,6 +43,8 @@ Use directly in markup:
 - Supports **async** methods.
 - Arbitrarily nested state objects
 - Add effect handling like `useEffect`, with additional arguments.
+- **Subscribe** to property changes.
+- **Undo** changes with history.
 
 ## Live preview
 
@@ -140,6 +138,13 @@ T is the state object, S is a subscribe function and E is an effect function, li
     - Returns an unsubscribe function
   - [2]: A `history` interface with undo, redo, revert any previous change, and rollback to any previous state. See [history](#History) below.
 
+## Upgrade
+
+Version 2.0: useReactive returns a tuple with the reactive object and a subscribe function. Simply change `const state = useReactive({})` to `const [state] = useReactive({})`, disregarding the new subscribe function. 
+
+Version 2.1 adds [history](#History).
+
+Version 3.0 uses a function to return the dependence array for effects. This makes it possible to directly reference properties of the reactive state object using the  `this` keyword.
 
 ## Examples
 
