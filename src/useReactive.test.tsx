@@ -369,3 +369,93 @@ describe("createReactiveStore", () => {
     expect(effectMock).toHaveBeenCalledWith(1);
   });
 });
+
+describe("useReactive - History Functionality", () => {
+    it("should initialize state correctly", () => {
+        const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }));
+        
+        expect(result.current[0].count).toBe(0);
+        expect(result.current[0].message).toBe("Hello");
+    });
+
+    it("should update state and track changes when history is enabled", () => {
+        const { result } = renderHook(() => useReactive({ count: 0 }));
+        
+        act(() => {
+            result.current[2].enable(true);
+            result.current[0].count++;
+        });
+
+        expect(result.current[0].count).toBe(1);
+        expect(result.current[2].entries.length).toBe(1);
+    });
+
+    it("should not track changes when history is disabled", () => {
+        const { result } = renderHook(() => useReactive({ count: 0 }));
+        
+        act(() => {
+            result.current[0].count++;
+        });
+
+        expect(result.current[0].count).toBe(1);
+        expect(result.current[2].entries.length).toBe(0);
+    });
+
+    it("should undo the last change", () => {
+        const { result } = renderHook(() => useReactive({ count: 0 }));
+        
+        act(() => {
+            result.current[2].enable(true);
+            result.current[0].count++;
+            result.current[2].undo();
+        });
+
+        expect(result.current[0].count).toBe(0);
+        expect(result.current[2].entries.length).toBe(0);
+    });
+
+    it("should revert a specific change", () => {
+        const { result } = renderHook(() => useReactive({ count: 0 }));
+        
+        act(() => {
+            result.current[2].enable(true);
+            result.current[0].count++;
+            result.current[0].count++;
+            result.current[2].revert(0);
+        });
+
+        expect(result.current[0].count).toBe(0);
+        expect(result.current[2].entries.length).toBe(1);
+    });
+
+    it("should undo to a specific index", () => {
+        const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }));
+        
+        act(() => {
+            result.current[2].enable(true);
+            result.current[0].count++;
+            result.current[0].message = "Updated";
+            result.current[2].undo(0);
+        });
+
+        expect(result.current[0].count).toBe(0);
+        expect(result.current[0].message).toBe("Hello");
+        expect(result.current[2].entries.length).toBe(0);
+    });
+
+    it("should restore to a specific snapshot", () => {
+        const { result } = renderHook(() => useReactive({ count: 0 }));
+        let savedPoint;
+
+        act(() => {
+            result.current[2].enable(true);
+            result.current[0].count++;
+            savedPoint = result.current[2].snapshot();
+            result.current[0].count++;
+            result.current[2].restore(savedPoint);
+        });
+
+        expect(result.current[0].count).toBe(1);
+        expect(result.current[2].entries.length).toBe(1);
+    });
+});

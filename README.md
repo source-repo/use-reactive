@@ -333,8 +333,8 @@ const MultipleEffectsExample = () => {
     const [state] = useReactive(
         { count: 0, text: "Hello" },
         [
-            [function () { console.log("Count changed:", this.count); }, []],
-            [function () { console.log("Text changed:", this.text); }, []],
+            [function () { console.log("Count changed:", this.count); }, ()=> []],
+            [function () { console.log("Text changed:", this.text); }, () => []],
         ]
     );
 
@@ -380,7 +380,7 @@ const SubscribedCounter = () => {
 
 ## **History**
 
-The `useReactive` hook provides a built-in **history tracking system** that allows you to **undo, revert, and rollback** state changes efficiently.
+The `useReactive` hook provides a built-in **history tracking system** that allows you to `undo`, `revert` and `rollback` state changes efficiently. The current point in the history can be saved as a `snapshot` for later `restore`.
 
 The history interface is returned as the optional third element of the tuple returned by useReactive.
 
@@ -414,15 +414,15 @@ const ExampleComponent = () => {
 
 ### **History API**
 
-| Function                             | Description                                                  |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `enable(enabled?: boolean): boolean` | Enable or disable history tracking (unless `enabled` is left out). Returns current state. |
-| `undo(index?: number): void`         | Undo the last change or up to a given index (0 for all).     |
-| `redo(all?: boolean): void`          | Redo the last undo or all of the saved redo stack.           |
-| `revert(index: number): void`        | Undo a specific change by index.                             |
-| `snapshot(): string | null`          | Save a point in history. Return value `null` signifies the empty state (all saved changes will removed). |
-| `restore(id: string | null): void`   | Restore a saved snapshot.                                    |
-| `clear(): void`                      | Clear the history.                                           |
+| Function                                     | Description                                                  |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| enable(enabled?: boolean, maxDepth?: number) | Enable or disable history tracking (unless `enabled` is left out). Returns current state. |
+| `undo(index?: number): void`                 | Undo the last change or up to a given index (0 for all).     |
+| `redo(all?: boolean): void`                  | Redo the last undo or all of the saved redo stack.           |
+| `revert(index: number): void`                | Undo a specific change by index.                             |
+| `snapshot(): string | null`                  | Save a point in history. Return value `null` signifies the empty state (all saved changes will removed). |
+| `restore(id: string | null): void`           | Restore a saved snapshot.                                    |
+| `clear(): void`                              | Clear the history.                                           |
 
 
 

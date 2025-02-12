@@ -278,24 +278,37 @@ const SubscribedCounter2 = () => {
     );
 };
 
+const TheCheckBox = ({ caption, checked, setChecked }: { caption: string, checked: boolean, setChecked: (checked: boolean) => void }) => {
+    return (
+        <div>
+            <h3>Checkbox</h3>
+            <label>
+                <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked) } />
+                {caption}
+            </label>
+        </div>
+    );
+}
+
 const ReactiveHistoryExample = () => {
-    const [state, , history] = useReactive({ text1: "", text2: "" });
+    const [state, , history] = useReactive({ checked: false, sub: { text1: "", text2: "" } });
     const [historyEnabled, setHistoryEnabled] = useState(false);
     const [snapshot, setSnapshot] = useState<string | null | undefined>(undefined);
 
     return (
         <div>
             <h2>History</h2>
+            <TheCheckBox caption="Some boolean" checked={state.checked} setChecked={(checked) => state.checked = checked} />
             <input
                 type="text"
-                value={state.text1}
-                onChange={(e) => (state.text1 = e.target.value)}
+                value={state.sub.text1}
+                onChange={(e) => (state.sub.text1 = e.target.value)}
             />
             <p />
             <input
                 type="text"
-                value={state.text2}
-                onChange={(e) => (state.text2 = e.target.value)}
+                value={state.sub.text2}
+                onChange={(e) => (state.sub.text2 = e.target.value)}
             />
             <br />
             <label>
@@ -304,7 +317,7 @@ const ReactiveHistoryExample = () => {
                     checked={historyEnabled}
                     onChange={(e) => {
                         setHistoryEnabled(e.target.checked);
-                        history.enable(e.target.checked);
+                        history.enable(e.target.checked, 5);
                     }}
                 />
                 Enable History
@@ -321,15 +334,15 @@ const ReactiveHistoryExample = () => {
                 Restore snapshot
             </button>
             <h3>Changes:</h3>
-            <ul>
+            <ul style={{ minHeight: '800px', overflowY: 'scroll' }}>
                 {history.entries.map((entry, index) => (
                     <div key={index} style={{ display: 'flex' }}>
                         <li key={entry.id}>
                             [{new Date(entry.timestamp).toLocaleTimeString()}]&nbsp;
                             {entry.key}&nbsp;
-                            "{entry.previous as any}" → "{entry.value}"&nbsp;
+                            "{String(entry.previous)}" → "{String(entry.value)}"&nbsp;
                             <button onClick={() => history.revert(index)}>Revert</button>&nbsp;
-                            <button onClick={() => history.undo(index)}>Rollback</button>
+                            <button onClick={() => history.undo(index)}>Undo to here</button>
                         </li>
                     </div>
                 ))}

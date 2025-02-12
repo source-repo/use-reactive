@@ -19,13 +19,14 @@ type Subscriber<T> = {
 type HE<T> = {
     id: string;
     timestamp: number;
+    obj: object;
     key: keyof T;
     previous: unknown;
     value: unknown;
 };
 
 type H<T> = {
-    enable(enabled?: boolean): boolean;
+    enable(enabled?: boolean, maxDepth?: number): HistorySettings;
     undo(index?: number):  void;
     redo(all?: boolean): void;
     revert (index: number): void;
@@ -34,6 +35,8 @@ type H<T> = {
     clear(): void;
     entries: HE<T>[];
 };
+
+type HistorySettings = { enabled: boolean, maxDepth: number };
 
 /**
  * Map for storing data about each property
@@ -115,7 +118,7 @@ export function useReactive<T extends object>(
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(new WeakMap());
     const subscribersRef = useRef<Array<Subscriber<T>>>([]);
     const history = useRef<HE<T>[]>([]);
-    const historyEnabled = useRef<boolean>(false);
+    const historyEnabled = useRef<HistorySettings>({ enabled: false, maxDepth: 100 });
     const redoStack = useRef<HE<T>[]>([]);
 
     let stateMap = stateMapRef.current.get(reactiveStateRef.current);
@@ -228,8 +231,10 @@ export function useReactive<T extends object>(
                     if (!isEqual(previousValue, value)) {
                         stateMap.set(prop as keyof T, [true, map, propValue]);
                         obj[prop as keyof T] = value;
-                        if (historyEnabled.current) {
-                            history.current.push({ id: crypto.randomUUID(), key: prop as keyof T, previous: previousValue, value, timestamp: Date.now() });
+                        if (historyEnabled.current.enabled) {
+                            if (history.current.length >= historyEnabled.current.maxDepth)
+                                history.current.shift();
+                            history.current.push({ id: crypto.randomUUID(), obj: proxy, key: prop as keyof T, previous: previousValue, value, timestamp: Date.now() });
                         }
                         setTrigger((prev) => prev + 1);
                     }
@@ -299,9 +304,16 @@ export function useReactive<T extends object>(
         }
     }
 
-    const enableHistory = (enabled?: boolean) => {
-        if (enabled !== undefined)
-            historyEnabled.current = enabled;
+    const enableHistory = (enabled?: boolean, maxDepth?: number) => {
+        if (enabled !== undefined) {
+            historyEnabled.current.enabled = enabled;
+            if (!enabled) {
+                history.current = [];
+                redoStack.current = [];
+            }
+        }
+        if (maxDepth !== undefined)
+            historyEnabled.current.maxDepth = maxDepth;
         return historyEnabled.current;
     };
 
@@ -309,11 +321,13 @@ export function useReactive<T extends object>(
         if (history.current.length === 0) return;
         const lastChange = history.current.pop();
         if (lastChange !== undefined) {
-            redoStack.current.push({ id: lastChange.id, key: lastChange.key, previous: lastChange.previous, value: lastChange.value, timestamp: lastChange.timestamp });
-            const savedHistoryEnabled = historyEnabled.current;
-            enableHistory(false);
-            (proxyRef.current as any)[lastChange.key] = lastChange.previous;
-            enableHistory(savedHistoryEnabled)
+            if (redoStack.current.length >= historyEnabled.current.maxDepth)
+                redoStack.current.shift();
+            redoStack.current.push({ id: lastChange.id, obj: lastChange.obj, key: lastChange.key, previous: lastChange.previous, value: lastChange.value, timestamp: lastChange.timestamp });
+            const savedHistoryEnabled = historyEnabled.current.enabled;
+            historyEnabled.current.enabled = false;
+            (lastChange.obj as any)[lastChange.key] = lastChange.previous;
+            historyEnabled.current.enabled = savedHistoryEnabled;
         }
     };
 
@@ -333,7 +347,7 @@ export function useReactive<T extends object>(
         do {
             const redoChange = redoStack.current.pop();
             if (redoChange) {
-                (proxyRef.current as any)[redoChange.key] = redoChange.value;
+                (redoChange.obj as any)[redoChange.key] = redoChange.value;
             }
         } while (all && redoStack.current.length > 0);
     };
@@ -342,10 +356,10 @@ export function useReactive<T extends object>(
         if (index < 0 || index >= history.current.length) return;
         const entry = history.current[index];
         if (entry) {
-            const savedHistoryEnabled = historyEnabled.current;
-            enableHistory(false);
-            (proxyRef.current as any)[entry.key] = entry.previous;
-            enableHistory(savedHistoryEnabled)
+            const savedHistoryEnabled = historyEnabled.current.enabled;
+            historyEnabled.current.enabled = false;
+            (entry.obj as any)[entry.key] = entry.previous;
+            historyEnabled.current.enabled = savedHistoryEnabled;
             history.current.splice(index, 1);
         }
     };
