@@ -77,12 +77,14 @@ const SingleEffectExample = () => {
     const [state] = useReactive(
         { count: 0 },
         {
-            effect() {
-                console.log("Count changed:", this.count);
-            },
-            deps() {
-                return [this!.count]
-            }
+            effects: [[
+                function () {
+                    console.log("Count changed:", this.count);
+                },
+                function () {
+                    return [this!.count]
+                }
+            ]]
         }
     );
 
@@ -147,7 +149,6 @@ const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
             init() {
                 console.log("Count changed due to prop update:", this.count);
             },
-            deps() { return [this.count] }
         }
     );
 
@@ -245,13 +246,15 @@ export const SubscribedCounter = () => {
                 this.count = 10;
                 console.log("SubscribedCounter initialized");
             },
-            effect() {
-                console.log("SubscribedCounter effect");
-                subscribe(() => [this.count2, this.count], (key, value, previous) => {
-                    console.log(`${key} changed from ${previous} to ${value}`);
-                });
-            },
-            deps: () => []
+            effects: [[
+                function (_state, subscribe) {
+                    console.log("SubscribedCounter effect");
+                    subscribe(() => [this.count2, this.count], (key, value, previous) => {
+                        console.log(`${key} changed from ${previous} to ${value}`);
+                    });
+                },
+                () => []
+            ]],
         });
     return (
         <div>

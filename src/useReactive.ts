@@ -131,8 +131,6 @@ const syncState = <T extends object>(
 
 export interface RO<T> {
     init?: (this: T, state: T, subscribe: S<T>, history: H<T>) => void,
-    effect?: E<T>,
-    deps?: (this: T, state: T) => unknown[],
     effects?: Array<[E<T>, (this: T, state: T) => unknown[]]>,
     historySettings?: HistorySettings,
 }
@@ -402,7 +400,7 @@ export function useReactive<T extends object>(
     }
 
     // useEffect to handle side effects and cleanup
-    if (options?.effect || options?.effects) {
+    if (options?.effects) {
         function getNestedValue<T>(obj: unknown, path?: string, defaultValue?: T): T | undefined {
             if (!obj || typeof obj !== 'object' || !path) return defaultValue;
         
@@ -418,31 +416,17 @@ export function useReactive<T extends object>(
             if (!deps) return undefined;
             return deps.map(prop => (typeof prop === 'symbol') ? getNestedValue(reactiveStateRef.current!, prop.description) : prop);
         }
-        if (options?.effect) {
-            // Single effect function
+        // Multiple effect/dependency pairs
+        for (const [effectF, effectDeps] of options.effects) {
             useEffect(() => {
                 let cleanup: (() => void) | void;
-                if (typeof options?.effect === "function" && options.effect && proxyRef.current) {
-                    cleanup = options.effect.apply(proxyRef.current, [proxyRef.current, subscribe, history]);
+                if (effectF && proxyRef.current) {
+                    cleanup = effectF.apply(proxyRef.current, [proxyRef.current, subscribe, history]);
                 }
                 return () => {
                     if (cleanup) cleanup();
                 };
-            }, options.deps ? getDeps(options.deps.call(reactiveStateRef.current, reactiveStateRef.current)) : []);
-        }
-        if (options?.effects) {
-            // Multiple effect/dependency pairs
-            for (const [effectF, effectDeps] of options.effects) {
-                useEffect(() => {
-                    let cleanup: (() => void) | void;
-                    if (effectF && proxyRef.current) {
-                        cleanup = effectF.apply(proxyRef.current, [proxyRef.current, subscribe, history]);
-                    }
-                    return () => {
-                        if (cleanup) cleanup();
-                    };
-                }, effectDeps ? getDeps(effectDeps.call(reactiveStateRef.current, reactiveStateRef.current)) : []);
-            }
+            }, effectDeps ? getDeps(effectDeps.call(reactiveStateRef.current, reactiveStateRef.current)) : []);
         }
     }
 

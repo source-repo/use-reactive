@@ -106,12 +106,10 @@ Note: The function `increment` above can be declared without the `function` keyw
 
 ###### JavaScript (TL;DR)
 
-`const [state, subscribe, history] = useReactive(state, options: { effect, deps, historySettings })`
+`const [state, subscribe, history] = useReactive(state, options)`
 
 - `state`: The state object with properties and methods bound to `this`.
-- `init?`: A function to run only once.
-- `effect?`: Effect function OR array of function and dependency function pairs (see deps)). State is supplied as argument (also `this`).
-- `deps?`: function returning the array of dependencies for a single effect function. Use `this` to reference the reactive object.
+- `options?`: An options object: { init,  effects, historySettings }
 
 ###### TypeScript
 
@@ -119,17 +117,17 @@ Note: The function `increment` above can be declared without the `function` keyw
 const [ state, subscribe, history ] = useReactive<T extends object>( state: T, options?: RO<T> ): [ T, S<T>, H<T> ]
 ```
 
-T is the state object, S is a subscribe function and E is an effect function, like React useEffect.
+T is the state object, S is a subscribe function and E is an effect function, like React useEffect. RO is an `options` object, see below.
 
 #### Parameters:
 
 - `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
 - options?: Optional object with options:
   - `init?`: Function to  runs once only.
-  - `effect?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
-    - Optionally this can be an array of effect and function returning dependency pairs (see `deps` below): [ [`function foo1 {}`, function () { return [`dep1`] } ], [`function foo2 {}`, function () { return [`dep2`] } ] ]
-
-  - `deps?`: Function returning the dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function. Use `this` to reference the reactive object.
+  - `effects?`: Array of side effects that can run when a dependency changes.  Each effect is a pair of:
+    - An effect function. Return a cleanup function if needed.
+    - A function returning a dependency array.
+    
   - historySettings?: Settings for the `history` function.
 
 
@@ -322,13 +320,15 @@ const SingleEffectExample = () => {
     const [state] = useReactive(
         { count: 0 },
         {
-	        effect() {
-    	        console.log("Count changed:", this.count);
-                return () => console.log('bye');
-       		},
-            deps() {
-                return [this.count];
-            }
+	        effects: [[ 
+                function () {
+	    	        console.log("Count changed:", this.count);
+    	            return () => console.log('bye');
+       			},
+	            function () {
+    	            return [this.count];
+        	    }
+          	]]
         }
     );
 
@@ -352,9 +352,9 @@ const MultipleEffectsExample = () => {
     const [state] = useReactive(
         { count: 0, text: "Hello" },
         {
-        	effect: [
-	            [function () { console.log("Count changed:", this.count); }, ()=> []],
-    	        [function () { console.log("Text changed:", this.text); }, () => []],
+        	effects: [
+	            [function () { console.log("Count changed:", this.count); }, ()=> [this.count]],
+    	        [function () { console.log("Text changed:", this.text); }, () => [this.text]],
         	]
         }
     );

@@ -60,11 +60,11 @@ describe('useReactive with Effects', () => {
       useReactive(
         { count: 0 },
         {
-          effect(state) {
+          effects: [[ function (state) {
             effectMock(state.count);
           },
-          deps() { return [this.count] }
-        }
+          function () { return [this.count] }
+        ]]}
       )
     );
 
@@ -210,14 +210,17 @@ describe("useReactive Hook", () => {
           }
         },
         {
-          effect(state) {
+          effects: [[
+            function (state) {
             console.log('this: ', this);
             const { count } = state;
             console.log(count)
             effectMock(this.count);
           },
-          deps: () => [propCount] // Using component prop as dependency
-        }),
+          function () { 
+            return [propCount] // Using component prop as dependency
+          }
+        ]]}),
       { initialProps: { propCount: 0 } }
     );
     expect(effectMock).toHaveBeenCalledWith(0);
