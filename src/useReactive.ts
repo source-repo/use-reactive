@@ -55,40 +55,70 @@ function isEqual(x: any, y: any): boolean {
     ) : (x === y);
 }
 
-// Recursively creates and updates a structure of info about each property.
-const syncState = <T extends object>(stateMapRef: WeakMap<object, PropertyMap>, obj: T, stateMap: PropertyMap, newObj?: T): void => {
-    Object.keys(obj).forEach((keyAny) => {
-        const key = keyAny as keyof T
+/**
+ * Recursively synchronizes and updates a structure containing information about each property.
+ * - Tracks state changes and updates properties accordingly.
+ * - Supports nested objects, while avoiding functions and getters.
+ * - Uses a WeakMap for tracking object property maps.
+ *
+ * @param stateMapRef - A WeakMap that associates objects with their corresponding property maps.
+ * @param obj - The target object whose properties are being tracked.
+ * @param stateMap - A Map storing metadata about properties, including modification status and last known value.
+ * @param newObj - An optional new object to compare against and apply updates from.
+ */
+const syncState = <T extends object>(
+    stateMapRef: WeakMap<object, PropertyMap>,
+    obj: T,
+    stateMap: PropertyMap,
+    newObj?: T
+): void => {
+    for (const key of Object.keys(obj) as (keyof T)[]) {
         const descriptor = Object.getOwnPropertyDescriptor(obj, key);
-        const isFunction = (descriptor && descriptor.value && typeof descriptor.value === "function");
-        const isGetter = (descriptor && descriptor.get && typeof descriptor.get === "function");
-        if (!isFunction && !isGetter) {
-            if (typeof obj[key] !== "object" || Array.isArray(obj[key])) {
-                if (typeof obj[key] === "function") return;
-                const [modifiedFlag, , lastPropValue] = stateMap.get(key) || [undefined, undefined, false];
-                let propValue = newObj ? newObj[key] : obj[key];
 
-                const propValueChanged = !isEqual(lastPropValue, propValue);
-                if ((!modifiedFlag || propValueChanged) && newObj && obj[key] !== propValue) {
-                    obj[key] = propValue;
-                }
-                stateMap.set(key, [modifiedFlag!, undefined, propValue]);
-            } else {
-                let childStateMap: PropertyMap | undefined;
-                if (!stateMap.has(key)) {
-                    childStateMap = new Map();
-                    stateMap.set(key, [false, childStateMap, obj[key]]);
-                } else {
-                    childStateMap = stateMap.get(key)![1];
-                }
-                stateMapRef.set(obj[key] as T, childStateMap!);
-                if (childStateMap)
-                    syncState(stateMapRef, obj[key] as T, childStateMap, newObj ? newObj[key] as T : undefined);
-            }
-        } else {
-            Object.defineProperty(obj, key, descriptor);
+        // Determine if the property is a function or getter
+        const isFunction = descriptor?.value && typeof descriptor.value === "function";
+        const isGetter = descriptor?.get && typeof descriptor.get === "function";
+
+        if (isFunction || isGetter) {
+            // Re-define getters and functions without modifications
+            Object.defineProperty(obj, key, descriptor!);
+            continue;
         }
-    });
+
+        const value = obj[key];
+
+        // Handle primitive values and arrays
+        if (typeof value !== "object" || Array.isArray(value)) {
+            if (typeof value === "function") continue; // Redundant check for safety
+
+            // Retrieve stored property metadata
+            const [modifiedFlag, , lastPropValue] = stateMap.get(key) || [undefined, undefined, undefined];
+            const newValue = newObj ? newObj[key] : value;
+            const propValueChanged = !isEqual(lastPropValue, newValue);
+
+            // Update the object property if it has changed
+            if (newObj && propValueChanged && obj[key] !== newValue) {
+                obj[key] = newValue;
+            }
+
+            // Update state tracking map
+            stateMap.set(key, [modifiedFlag ?? false, undefined, newValue]);
+        } else {
+            // Handle nested objects
+            let childStateMap = stateMap.get(key)?.[1];
+
+            if (!childStateMap) {
+                childStateMap = new Map();
+                stateMap.set(key, [false, childStateMap, value]);
+            }
+
+            // Track nested object in the WeakMap
+            stateMapRef.set(value as T, childStateMap);
+
+            // Recursively sync nested properties
+            syncState(stateMapRef, value as T, childStateMap, newObj ? (newObj[key] as T) : undefined);
+        }
+    }
 };
 
 /**
