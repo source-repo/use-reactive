@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { useReactive } from "./useReactive"; // Assuming your existing function
+import { useReactive, S, H, RO } from "./useReactive"; // Assuming your existing function
+
+interface ReactiveStoreContext<T> {
+    state: T;
+    subscribe: S<T>;
+    history: H<T>;
+}
 
 /**
  * Creates a globally shared reactive state using React Context and useReactive.
@@ -7,19 +13,19 @@ import { useReactive } from "./useReactive"; // Assuming your existing function
  * @param initialState The initial state object
  * @returns {ReactiveStoreProvider, useReactiveStore} Context provider and hook
  */
-export function createReactiveStore<T extends object>(initialState: T) {
-    const ReactiveStoreContext = createContext<T | null>(null);
+export function createReactiveStore<T extends object>(initialState: T, options?: RO<T>) {
+    const ReactiveStoreContext = createContext<ReactiveStoreContext<T> | null>(null);
     const ReactiveUpdateContext = createContext<(() => void) | null>(null);
 
     const ReactiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const [, forceUpdate] = useState(0);
-        const [store] = useReactive(initialState);
+        const [state, subscribe, history] = useReactive(initialState, options);
 
         // Override the global state setter to trigger re-renders
         const triggerUpdate = () => forceUpdate((prev) => prev + 1);
 
         return (
-            <ReactiveStoreContext.Provider value={store}>
+            <ReactiveStoreContext.Provider value={{state, subscribe, history}}>
                 <ReactiveUpdateContext.Provider value={triggerUpdate}>
                     {children}
                 </ReactiveUpdateContext.Provider>
@@ -27,7 +33,7 @@ export function createReactiveStore<T extends object>(initialState: T) {
         );
     };
 
-    const useReactiveStore = (): T => {
+    const useReactiveStore = (): ReactiveStoreContext<T> => {
         const context = useContext(ReactiveStoreContext);
         const triggerUpdate = useContext(ReactiveUpdateContext);
 
@@ -37,7 +43,7 @@ export function createReactiveStore<T extends object>(initialState: T) {
 
         useEffect(() => {
             triggerUpdate(); // Force a re-render on state change
-        }, [context]); // Depend on store object
+        }, [context.state]); // Depend on store object
 
         return context;
     };

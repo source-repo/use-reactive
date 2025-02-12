@@ -6,20 +6,27 @@
 ```
 # useReactive
 
-`useReactive` is a custom React hook that provides a reactive state object. Methods on this object use `this` to access members, enabling an object-oriented approach to encapsulating data and behavior. You can subscribe to property changes, and state modifications can be saved to a history with support for undo, redo, revert and snapshots. Additionally, a companion React context is available for sharing reactive state across a component hierarchy—see [createReactiveStore](#createReactiveStore) below.
+`useReactive` is a custom React hook that provides a reactive state object. 
+
+Methods on this object use `this` to access members, enabling an object-oriented approach to encapsulating data and behavior.
+
+You can `subscribe` to property changes.
+
+State modifications can be saved to a history with support for `undo`, `redo`, `revert` and `snapshot` / `restore`. 
+
+Additionally, a companion React context is available for sharing reactive state across a component hierarchy—see [createReactiveStore](#createReactiveStore) below.
 
 ```tsx
 const [state] = useReactive(
-  {
-    count: 0,
-    increment() {
-      this.count++;
-    },
+  { // Reactive state object with methods
+      count: 0,
+      increment() { 
+          this.count++; 
+      } 
   },
-  function init() {
-    console.log('Only runs once!')
-  }
-);
+  { // Options
+      init() { console.log('Only runs once!') }
+});
 ```
 
 Use directly in markup:
@@ -93,13 +100,13 @@ function ExampleComponent() {
 }
 ```
 
-Note: The function `increment` above can be declared without the `function` keyword using object shorthand syntax.
+Note: The function `increment` above can be declared without the `function` keyword when using object shorthand syntax.
 
 ## useReactive API
 
 ###### JavaScript (TL;DR)
 
-`const [state, subscribe, history] = useReactive(state, effect, ...deps)`
+`const [state, subscribe, history] = useReactive(state, options: { effect, deps, historySettings })`
 
 - `state`: The state object with properties and methods bound to `this`.
 - `init?`: A function to run only once.
@@ -109,12 +116,7 @@ Note: The function `increment` above can be declared without the `function` keyw
 ###### TypeScript
 
 ```typescript
-const [state, subscribe, history] = useReactive<T extends object>(
-    reactiveState: T,
-    init?: (this: T, state: T, subscribe: S<T>) => void,
-    effect?: E<T> | Array<[E<T>, (this: T) => unknown[]]>,
-    deps?: (this: T) => unknown[]
-): [T, S<T>, H<T>]
+const [ state, subscribe, history ] = useReactive<T extends object>( state: T, options?: RO<T> ): [ T, S<T>, H<T> ]
 ```
 
 T is the state object, S is a subscribe function and E is an effect function, like React useEffect.
@@ -122,10 +124,14 @@ T is the state object, S is a subscribe function and E is an effect function, li
 #### Parameters:
 
 - `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
-- `init?`: Function to  runs once only.
-- `effect?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
-  - Optionally this can be an array of effect and function returning dependency pairs (see `deps` below): [ [`function foo1 {}`, function () { return [`dep1`] } ], [`function foo2 {}`, function () { return [`dep2`] } ] ]
-- `deps?`: Function returning the dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function. Use `this` to reference the reactive object.
+- options?: Optional object with options:
+  - `init?`: Function to  runs once only.
+  - `effect?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
+    - Optionally this can be an array of effect and function returning dependency pairs (see `deps` below): [ [`function foo1 {}`, function () { return [`dep1`] } ], [`function foo2 {}`, function () { return [`dep2`] } ] ]
+
+  - `deps?`: Function returning the dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function. Use `this` to reference the reactive object.
+  - historySettings?: Settings for the `history` function.
+
 
 #### Returns:
 
@@ -145,6 +151,8 @@ Version 2.0: useReactive returns a tuple with the reactive object and a subscrib
 Version 2.1 adds [history](#History).
 
 Version 3.0 uses a function to return the dependence array for effects. This makes it possible to directly reference properties of the reactive state object using the  `this` keyword.
+
+Version 4.0: the useReactive function has an [options]() argument instead of individual items. The context is now an object with state, subscribe and history properties.
 
 ## Examples
 
@@ -313,9 +321,15 @@ const NestedStateExample = () => {
 const SingleEffectExample = () => {
     const [state] = useReactive(
         { count: 0 },
-        function () {
-            console.log("Count changed:", this.count);
-        },
+        {
+	        effect() {
+    	        console.log("Count changed:", this.count);
+                return () => console.log('bye');
+       		},
+            deps() {
+                return [this.count];
+            }
+        }
     );
 
     return (
@@ -337,10 +351,12 @@ const SingleEffectExample = () => {
 const MultipleEffectsExample = () => {
     const [state] = useReactive(
         { count: 0, text: "Hello" },
-        [
-            [function () { console.log("Count changed:", this.count); }, ()=> []],
-            [function () { console.log("Text changed:", this.text); }, () => []],
-        ]
+        {
+        	effect: [
+	            [function () { console.log("Count changed:", this.count); }, ()=> []],
+    	        [function () { console.log("Text changed:", this.text); }, () => []],
+        	]
+        }
     );
 
     return (
@@ -364,11 +380,13 @@ const MultipleEffectsExample = () => {
 const SubscribedCounter = () => {
     const [state, subscribe] = useReactive({
         count: 0,
-    }, 
-    function (state, subscribe) {
-        subscribe(() => [this.count], (key, value, previous) => {
-            console.log(`${key} changed from ${previous} to ${value}`);
-        });
+    },
+    {
+    	init(state, subscribe) {
+	        subscribe(() => [this.count], (key, value, previous) => {
+    	        console.log(`${key} changed from ${previous} to ${value}`);
+        	});
+	    }
     });
     return (
         <div>
@@ -402,8 +420,10 @@ The history interface is returned as the optional third element of the tuple ret
 
 ```tsx
 const ExampleComponent = () => {
-    const [state, , history] = useReactive({ count: 0 });
-    history.enable(true);
+    const [state, , history] = useReactive(
+        { count: 0 },
+        { historySettings: { enabled: true } }
+    );
     return (
         <div>
             <h2>Count: {state.count}</h2>
@@ -433,7 +453,7 @@ const ExampleComponent = () => {
 
 ## createReactiveStore
 
-The `createReactiveStore` function provides a globally shared reactive state using React Context and `useReactive`. It allows components to access and modify a reactive state object while ensuring updates trigger re-renders.
+The `createReactiveStore` function provides a globally shared reactive state using a React context and `useReactive`. It allows components to access and modify a reactive state object while ensuring updates trigger re-renders.
 
 ### Usage
 
@@ -448,35 +468,6 @@ const [ ReactiveStoreProvider, useReactiveStore ] = createReactiveStore({
     counter: 0,
     user: { name: "John Doe", age: 30 },
 });
-```
-
-
-
-#### Use the Global State in Components
-
-```
-const Counter = () => {
-    const store = useReactiveStore();
-
-    return (
-        <div>
-            <h2>Counter: {store.counter}</h2>
-            <button onClick={() => store.counter++}>Increment</button>
-            <button onClick={() => store.counter--}>Decrement</button>
-        </div>
-    );
-};
-
-const UserInfo = () => {
-    const store = useReactiveStore();
-
-    return (
-        <div>
-            <h2>User: {store.user.name}, Age: {store.user.age}, Counter: { store.counter }</h2>
-            <button onClick={() => store.user.age++}>Increase Age</button>
-        </div>
-    );
-};
 ```
 
 
@@ -497,6 +488,35 @@ function App() {
         </ReactiveStoreProvider>
     );
 }
+```
+
+
+
+#### Use the global store in Components
+
+```
+const Counter = () => {
+    const store = useReactiveStore();
+
+    return (
+        <div>
+            <h2>Counter: {store.state.counter}</h2>
+            <button onClick={() => store.state.counter++}>Increment</button>
+            <button onClick={() => store.state.counter--}>Decrement</button>
+        </div>
+    );
+};
+
+const UserInfo = () => {
+    const store = useReactiveStore();
+
+    return (
+        <div>
+            <h2>User: {store.state.user.name}, Age: {store.state.user.age}, Counter: { store.state.counter }</h2>
+            <button onClick={() => store.state.user.age++}>Increase Age</button>
+        </div>
+    );
+};
 ```
 
 

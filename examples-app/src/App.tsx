@@ -28,9 +28,9 @@ export const StoreCounter = () => {
 
     return (
         <div>
-            <h2>Counter: {store.counter}</h2>
-            <button onClick={() => store.counter++}>Increment</button>
-            <button onClick={() => store.counter--}>Decrement</button>
+            <h2>Counter: {store.state.counter}</h2>
+            <button onClick={() => store.state.counter++}>Increment</button>
+            <button onClick={() => store.state.counter--}>Decrement</button>
         </div>
     );
 };
@@ -40,8 +40,8 @@ export const StoreUserInfo = () => {
 
     return (
         <div>
-            <h2>User: {store.user.name}, Age: {store.user.age}, Counter: { store.counter }</h2>
-            <button onClick={() => store.user.age++}>Increase Age</button>
+            <h2>User: {store.state.user.name}, Age: {store.state.user.age}, Counter: { store.state.counter }</h2>
+            <button onClick={() => store.state.user.age++}>Increase Age</button>
         </div>
     );
 };

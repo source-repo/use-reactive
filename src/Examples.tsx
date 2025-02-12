@@ -76,12 +76,13 @@ const NestedStateExample = () => {
 const SingleEffectExample = () => {
     const [state] = useReactive(
         { count: 0 },
-        undefined,
-        function () {
-            console.log("Count changed:", this.count);
-        },
-        function () { 
-            return [this!.count]
+        {
+            effect() {
+                console.log("Count changed:", this.count);
+            },
+            deps() {
+                return [this!.count]
+            }
         }
     );
 
@@ -99,11 +100,12 @@ const SingleEffectExample = () => {
 const MultipleEffectsExample = () => {
     const [state] = useReactive(
         { count: 0, text: "Hello" },
-        undefined,
-        [
-            [function () { console.log("Count changed:", this.count); }, () => []],
-            [function () { console.log("Text changed:", this.text); }, () => []],
-        ]
+        {
+            effect: [
+                [function () { console.log("Count changed:", this.count); }, () => []],
+                [function () { console.log("Text changed:", this.text); }, () => []],
+            ]
+        }
     );
 
     return (
@@ -141,11 +143,12 @@ interface ReactiveChildProps {
 const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
     const [state] = useReactive(
         { count: initialCount },
-        undefined,
-        function () {
-            console.log("Count changed due to prop update:", this.count);
-        },
-        function() { return [this.count] }
+        {
+            init() {
+                console.log("Count changed due to prop update:", this.count);
+            },
+            deps() { return [this.count] }
+        }
     );
 
     return (
@@ -204,16 +207,17 @@ const ArrayExample = () => {
 const [ReactiveStoreProvider, useReactiveStore] = createReactiveStore({
     counter: 0,
     user: { name: "John Doe", age: 30 },
-});
+}, { init(_state, _subscribe, history) { history.enable(true) }  });
 
 function ReactiveStoreUser() {
     const store = useReactiveStore();
     return (
         <div>
             <h2>Reactive store user</h2>
-            <p>Name: {store.user.name}, Age: {store.user.age}</p>
-            <button onClick={() => store.user.name = "Jane Doe"}>Change name</button>
-            <button onClick={() => store.user.age++}>Increment age</button>
+            <p>Name: {store.state.user.name}, Age: {store.state.user.age}</p>
+            <button onClick={() => store.state.user.name = "Jane Doe"}>Change name</button>
+            <button onClick={() => store.state.user.age++}>Increment age</button>
+            <button onClick={() => store.history.undo()}>Undo</button>
         </div>
     );
 }
@@ -223,9 +227,10 @@ function AnotherReactiveStoreUser() {
     return (
         <div>
             <h2>Reactive store user</h2>
-            <p>Name: {store.user.name}, Age: {store.user.age}</p>
-            <button onClick={() => store.user.name = "Jane Doe"}>Change name</button>
-            <button onClick={() => store.user.age++}>Increment age</button>
+            <p>Name: {store.state.user.name}, Age: {store.state.user.age}</p>
+            <button onClick={() => store.state.user.name = "Jane Doe"}>Change name</button>
+            <button onClick={() => store.state.user.age++}>Increment age</button>
+            <button onClick={() => store.history.redo()}>Redo</button>
         </div>
     );
 }
@@ -234,18 +239,20 @@ export const SubscribedCounter = () => {
     const [state, subscribe] = useReactive({
         count: 0,
         count2: 0,
-    }, 
-    function () {
-        this.count = 10;
-        console.log("SubscribedCounter initialized");
     },
-    function () {
-        console.log("SubscribedCounter effect");
-        subscribe(() => [this.count2, this.count], (key, value, previous) => {
-            console.log(`${key} changed from ${previous} to ${value}`);
+        {
+            init() {
+                this.count = 10;
+                console.log("SubscribedCounter initialized");
+            },
+            effect() {
+                console.log("SubscribedCounter effect");
+                subscribe(() => [this.count2, this.count], (key, value, previous) => {
+                    console.log(`${key} changed from ${previous} to ${value}`);
+                });
+            },
+            deps: () => []
         });
-    }, 
-    () => []);
     return (
         <div>
             <h3>Subscribed Counter</h3>
@@ -262,12 +269,14 @@ const SubscribedCounter2 = () => {
     const [state] = useReactive({
         count: 0,
     },
-    function (state, subscribe) {
-        subscribe(() => [state.count], (key, value, previous) => {
-            console.log(`${key} changed from ${previous} to ${value}`);
-            console.log(this);
-        });    
-    });
+        {
+            init(state, subscribe) {
+                subscribe(() => [state.count], (key, value, previous) => {
+                    console.log(`${key} changed from ${previous} to ${value}`);
+                    console.log(this);
+                });
+            }
+        });
     return (
         <div>
             <h3>Subscribed Counter2</h3>
@@ -283,7 +292,7 @@ const TheCheckBox = ({ caption, checked, setChecked }: { caption: string, checke
         <div>
             <h3>Checkbox</h3>
             <label>
-                <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked) } />
+                <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
                 {caption}
             </label>
         </div>
@@ -352,8 +361,7 @@ const ReactiveHistoryExample = () => {
 };
 
 const ExampleComponent = () => {
-    const [state, , history] = useReactive({ count: 0 });
-    history.enable(true);
+    const [state, , history] = useReactive({ count: 0 }, { historySettings: { enabled: true } });
     return (
         <div>
             <h2>Count: {state.count}</h2>

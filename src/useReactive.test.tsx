@@ -59,11 +59,12 @@ describe('useReactive with Effects', () => {
     const { result, rerender } = renderHook(() =>
       useReactive(
         { count: 0 },
-        undefined,
-        function (state) {
-          effectMock(state.count);
-        },
-        function () { return [this.count]}
+        {
+          effect(state) {
+            effectMock(state.count);
+          },
+          deps() { return [this.count] }
+        }
       )
     );
 
@@ -110,8 +111,9 @@ describe('useReactive init function', () => {
         count: 0,
 
       },
-        initMock, // Init function
-      )
+        {
+          init: initMock, // Init function
+        })
     );
 
     expect(initMock).toHaveBeenCalled();
@@ -153,7 +155,7 @@ describe("useReactive Hook", () => {
 
   test("init method runs once", () => {
     const initMock = vitest.fn();
-    renderHook(() => useReactive({}, initMock));
+    renderHook(() => useReactive({}, { init: initMock }));
     expect(initMock).toHaveBeenCalledTimes(1);
   });
 
@@ -207,15 +209,15 @@ describe("useReactive Hook", () => {
             this.count++;
           }
         },
-        undefined,
-        function (state) {
-          console.log('this: ', this);
-          const { count } = state;
-          console.log(count)
-          effectMock(this.count);
-        },
-        () => [propCount] // Using component prop as dependency
-      ),
+        {
+          effect(state) {
+            console.log('this: ', this);
+            const { count } = state;
+            console.log(count)
+            effectMock(this.count);
+          },
+          deps: () => [propCount] // Using component prop as dependency
+        }),
       { initialProps: { propCount: 0 } }
     );
     expect(effectMock).toHaveBeenCalledWith(0);
@@ -234,27 +236,30 @@ test("multiple effects run when dependencies change", () => {
         value: anotherProp,
         count2: 33,
       },
-      undefined,
-      [
-        [
-          function () {
-            effectMock1(this.count);
-          },
-          () => [propCount],
-        ],
-        [
-          function () {
-            effectMock2(this.value);
-          },
-          () => [anotherProp],
-        ],
-        [
-          function () {
-            effectMock1(this.count2);
-          },
-          function () { return [this.count2] },
-        ],
-      ]
+      {
+        effect: [
+          [
+            function () {
+              effectMock1(this.count);
+            },
+            () => [propCount],
+          ],
+          [
+            function () {
+              effectMock2(this.value);
+            },
+            () => [anotherProp],
+          ],
+          [
+            function () {
+              effectMock1(this.count2);
+            },
+            function () { 
+              return [this.count2] 
+            },
+          ],
+        ]
+      }
     ),
     { initialProps: { propCount: 0, anotherProp: "a" } }
   );
@@ -284,13 +289,13 @@ describe("createReactiveStore", () => {
       wrapper: ({ children }) => <Provider>{children}</Provider>,
     });
 
-    expect(result.current.counter).toBe(0);
+    expect(result.current.state.counter).toBe(0);
 
     act(() => {
-      result.current.counter++;
+      result.current.state.counter++;
     });
 
-    expect(result.current.counter).toBe(1);
+    expect(result.current.state.counter).toBe(1);
   });
 
   it("should throw an error when used outside of provider", () => {
@@ -308,16 +313,16 @@ describe("createReactiveStore", () => {
       wrapper: ({ children }) => <Provider>{children}</Provider>,
     });
 
-    expect(result.current.counter).toBe(0);
-    expect(result.current.user.name).toBe("John");
+    expect(result.current.state.counter).toBe(0);
+    expect(result.current.state.user.name).toBe("John");
 
     act(() => {
-      result.current.counter += 5;
-      result.current.user.name = "Doe";
+      result.current.state.counter += 5;
+      result.current.state.user.name = "Doe";
     });
 
-    expect(result.current.counter).toBe(5);
-    expect(result.current.user.name).toBe("Doe");
+    expect(result.current.state.counter).toBe(5);
+    expect(result.current.state.user.name).toBe("Doe");
   });
 
   it("should trigger re-renders when state updates", () => {
@@ -328,12 +333,12 @@ describe("createReactiveStore", () => {
     });
 
     act(() => {
-      result.current.count++;
+      result.current.state.count++;
     });
 
     rerender();
 
-    expect(result.current.count).toBe(1);
+    expect(result.current.state.count).toBe(1);
   });
   it("should trigger a callback when a given property updates", () => {
     const effectMock = vi.fn();
@@ -349,19 +354,22 @@ describe("createReactiveStore", () => {
     const effectMock = vi.fn();
     let unsubscribe: () => void;
     const { result, rerender } = renderHook(() => useReactive(
-      { count: 0 
+      {
+        count: 0
 
       },
-      function (state, subscribe) {
-        unsubscribe = subscribe(() => [this.count], () => effectMock(this.count));
+      {
+        init(state, subscribe) {
+          unsubscribe = subscribe(() => [this.count], () => effectMock(this.count));
+        }
       }
     ));
-    act(() => {      
+    act(() => {
       result.current[0].count++;
     });
     expect(result.current[0].count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
-    act(() => {      
+    act(() => {
       unsubscribe();
       result.current[0].count++;
     });
@@ -371,91 +379,86 @@ describe("createReactiveStore", () => {
 });
 
 describe("useReactive - History Functionality", () => {
-    it("should initialize state correctly", () => {
-        const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }));
-        
-        expect(result.current[0].count).toBe(0);
-        expect(result.current[0].message).toBe("Hello");
+  it("should initialize state correctly", () => {
+    const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }));
+
+    expect(result.current[0].count).toBe(0);
+    expect(result.current[0].message).toBe("Hello");
+  });
+
+  it("should update state and track changes when history is enabled", () => {
+    const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
+
+    act(() => {
+      result.current[0].count++;
     });
 
-    it("should update state and track changes when history is enabled", () => {
-        const { result } = renderHook(() => useReactive({ count: 0 }));
-        
-        act(() => {
-            result.current[2].enable(true);
-            result.current[0].count++;
-        });
+    expect(result.current[0].count).toBe(1);
+    expect(result.current[2].entries.length).toBe(1);
+  });
 
-        expect(result.current[0].count).toBe(1);
-        expect(result.current[2].entries.length).toBe(1);
+  it("should not track changes when history is disabled", () => {
+    const { result } = renderHook(() => useReactive({ count: 0 }));
+
+    act(() => {
+      result.current[0].count++;
     });
 
-    it("should not track changes when history is disabled", () => {
-        const { result } = renderHook(() => useReactive({ count: 0 }));
-        
-        act(() => {
-            result.current[0].count++;
-        });
+    expect(result.current[0].count).toBe(1);
+    expect(result.current[2].entries.length).toBe(0);
+  });
 
-        expect(result.current[0].count).toBe(1);
-        expect(result.current[2].entries.length).toBe(0);
+  it("should undo the last change", () => {
+    const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
+
+    act(() => {
+      result.current[0].count++;
+      result.current[2].undo();
     });
 
-    it("should undo the last change", () => {
-        const { result } = renderHook(() => useReactive({ count: 0 }));
-        
-        act(() => {
-            result.current[2].enable(true);
-            result.current[0].count++;
-            result.current[2].undo();
-        });
+    expect(result.current[0].count).toBe(0);
+    expect(result.current[2].entries.length).toBe(0);
+  });
 
-        expect(result.current[0].count).toBe(0);
-        expect(result.current[2].entries.length).toBe(0);
+  it("should revert a specific change", () => {
+    const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
+
+    act(() => {
+      result.current[0].count++;
+      result.current[0].count++;
+      result.current[2].revert(0);
     });
 
-    it("should revert a specific change", () => {
-        const { result } = renderHook(() => useReactive({ count: 0 }));
-        
-        act(() => {
-            result.current[2].enable(true);
-            result.current[0].count++;
-            result.current[0].count++;
-            result.current[2].revert(0);
-        });
+    expect(result.current[0].count).toBe(0);
+    expect(result.current[2].entries.length).toBe(1);
+  });
 
-        expect(result.current[0].count).toBe(0);
-        expect(result.current[2].entries.length).toBe(1);
+  it("should undo to a specific index", () => {
+    const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }, { historySettings: { enabled: true } }));
+
+    act(() => {
+      result.current[0].count++;
+      result.current[0].message = "Updated";
+      result.current[2].undo(0);
     });
 
-    it("should undo to a specific index", () => {
-        const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }));
-        
-        act(() => {
-            result.current[2].enable(true);
-            result.current[0].count++;
-            result.current[0].message = "Updated";
-            result.current[2].undo(0);
-        });
+    expect(result.current[0].count).toBe(0);
+    expect(result.current[0].message).toBe("Hello");
+    expect(result.current[2].entries.length).toBe(0);
+  });
 
-        expect(result.current[0].count).toBe(0);
-        expect(result.current[0].message).toBe("Hello");
-        expect(result.current[2].entries.length).toBe(0);
+  it("should restore to a specific snapshot", () => {
+    const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
+    let savedPoint;
+
+    act(() => {
+      result.current[0].count++;
+      savedPoint = result.current[2].snapshot();
+      result.current[0].count++;
+      result.current[2].restore(savedPoint);
     });
 
-    it("should restore to a specific snapshot", () => {
-        const { result } = renderHook(() => useReactive({ count: 0 }));
-        let savedPoint;
-
-        act(() => {
-            result.current[2].enable(true);
-            result.current[0].count++;
-            savedPoint = result.current[2].snapshot();
-            result.current[0].count++;
-            result.current[2].restore(savedPoint);
-        });
-
-        expect(result.current[0].count).toBe(1);
-        expect(result.current[2].entries.length).toBe(1);
-    });
+    expect(result.current[0].count).toBe(1);
+    expect(result.current[2].entries.length).toBe(1);
+  });
 });
