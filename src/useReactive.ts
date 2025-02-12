@@ -103,8 +103,8 @@ const syncState = <T extends object>(stateMapRef: WeakMap<object, PropertyMap>, 
 export function useReactive<T extends object>(
     reactiveState: T,
     init?: (this: T, state: T, subscribe: S<T>) => void,
-    effect?: E<T> | Array<[E<T>, unknown[]]>,
-    deps?: unknown[]
+    effect?: E<T> | Array<[E<T>, (this: T) => unknown[]]>,
+    deps?: (this: T) => unknown[]
 ): [T, S<T>, H<T>] {
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
@@ -257,9 +257,16 @@ export function useReactive<T extends object>(
 
     // useEffect to handle side effects and cleanup
     if (effect) {
-        function getNestedValue<T>(obj: unknown, path?: string): T | undefined {
-            return path ? path.split('.').reduce<any>((acc, key) =>
-                acc && acc[key.match(/^\d+$/) ? Number(key) : key], obj) : undefined;
+        function getNestedValue<T>(obj: unknown, path?: string, defaultValue?: T): T | undefined {
+            if (!obj || typeof obj !== 'object' || !path) return defaultValue;
+        
+            // Convert bracket notation to dot notation (e.g., "user.address[0].city" -> "user.address.0.city")
+            const normalizedPath = path.replace(/\[(\d+)\]/g, '.$1'); 
+        
+            return normalizedPath.split('.').reduce<any>((acc, key) => {
+                if (acc === null || acc === undefined) return undefined;
+                return acc[key];
+            }, obj) ?? defaultValue;
         }
         function getDeps(deps?: unknown[]): unknown[] | undefined {
             if (!deps) return undefined;
@@ -275,7 +282,7 @@ export function useReactive<T extends object>(
                 return () => {
                     if (cleanup) cleanup();
                 };
-            }, getDeps(deps));
+            }, deps ? getDeps(deps.call(reactiveStateRef.current)) : []);
         } else if (Array.isArray(effect)) {
             // Multiple effect/dependency pairs
             effect.forEach(([effectF, effectDeps]) => {
@@ -287,7 +294,7 @@ export function useReactive<T extends object>(
                     return () => {
                         if (cleanup) cleanup();
                     };
-                }, getDeps(effectDeps));
+                }, effectDeps ? getDeps(effectDeps.call(reactiveStateRef.current)) : []);
             });
         }
     }

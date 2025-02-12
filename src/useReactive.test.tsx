@@ -62,7 +62,8 @@ describe('useReactive with Effects', () => {
         undefined,
         function (state) {
           effectMock(state.count);
-        }
+        },
+        function () { return [this.count]}
       )
     );
 
@@ -213,7 +214,7 @@ describe("useReactive Hook", () => {
           console.log(count)
           effectMock(this.count);
         },
-        [propCount] // Using component prop as dependency
+        () => [propCount] // Using component prop as dependency
       ),
       { initialProps: { propCount: 0 } }
     );
@@ -239,19 +240,19 @@ test("multiple effects run when dependencies change", () => {
           function () {
             effectMock1(this.count);
           },
-          [propCount],
+          () => [propCount],
         ],
         [
           function () {
             effectMock2(this.value);
           },
-          [anotherProp],
+          () => [anotherProp],
         ],
         [
           function () {
             effectMock1(this.count2);
           },
-          [Symbol("count2")],
+          function () { return [this.count2] },
         ],
       ]
     ),

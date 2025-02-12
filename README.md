@@ -8,9 +8,9 @@
 
 `useReactive` is a custom React hook that provides a reactive state object. Methods on the state object use `this` to access members, enabling OOP-style encapsulation of data and behavior. There is also a companion React context for sharing a reactive state within a component hierarchy, see [createReactiveStore](#createReactiveStore) below.
 
-**NOTE:** Upgrade from v1 to v2: useReactive now returns a tuple with the reactive object and a subscribe function. Simply change `const state = useReactive({})` to `const [state] = useReactive({})`, disregarding the new subscribe function.
+**NOTE:** Upgrade from v1 to v2: useReactive now returns a tuple with the reactive object and a subscribe function. Simply change `const state = useReactive({})` to `const [state] = useReactive({})`, disregarding the new subscribe function. Version 2.1 adds [history](#History).
 
-**NEW:** Version 2.1 adds [history](#History).
+**NEW:** Version 3.0 now uses a function to return the dependence array for effects. This makes it possible to directly reference properties of the reactive state object using the  `this` keyword.
 
 ```tsx
 const [state] = useReactive(
@@ -105,8 +105,8 @@ Note: The function `increment` above can be declared without the `function` keyw
 
 - `state`: The state object with properties and methods bound to `this`.
 - `init?`: A function to run only once.
-- `effectOrEffects?`: Effect function OR array of function and dependency pairs. State is supplied as argument (also `this`).
-- `deps?`: Array of dependencies for a single effect function.
+- `effectOrEffects?`: Effect function OR array of function and dependency function pairs (see deps)). State is supplied as argument (also `this`).
+- `deps?`: function returning the array of dependencies for a single effect function. Use `this` to reference the reactive object.
 
 ###### TypeScript
 
@@ -114,8 +114,8 @@ Note: The function `increment` above can be declared without the `function` keyw
 const [state, subscribe] = useReactive<T extends object>(
     reactiveState: T,
     init?: (this: T, state: T, subscribe: S<T>) => void,
-    effect?: E<T> | Array<[E<T>, unknown[]]>,
-    deps?: unknown[]
+    effect?: E<T> | Array<[E<T>, (this: T) => unknown[]]>,
+    deps?: (this: T) => unknown[]
 ): [T, S<T>, H<T>]
 ```
 
@@ -126,9 +126,8 @@ T is the state object, S is a subscribe function and E is an effect function, li
 - `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
 - `init(state, subscribe)`: Function to  runs once only.
 - `effectOrEffects(state)?`: Side effect(s) that can run when a dependency changes. Return a cleanup function if needed.
-  - Optionally this can be an array of effect and dependency pairs: [ [`function foo1 {}`, [`dep1`] ], [`function foo2 {}`, [`dep2`] ] ]
-
-- `deps?`: Dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function.
+  - Optionally this can be an array of effect and function returning dependency pairs (see `deps` below): [ [`function foo1 {}`, function () { return [`dep1`] } ], [`function foo2 {}`, function () { return [`dep2`] } ] ]
+- `deps?`: Function returning the dependency array to control when the effect re-runs. Defaults to `[]` (run once). Only used when `effect` is a simple function. Use `this` to reference the reactive object.
 
 #### Returns:
 

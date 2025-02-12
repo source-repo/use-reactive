@@ -80,6 +80,9 @@ const SingleEffectExample = () => {
         function () {
             console.log("Count changed:", this.count);
         },
+        function () { 
+            return [this!.count]
+        }
     );
 
     return (
@@ -98,8 +101,8 @@ const MultipleEffectsExample = () => {
         { count: 0, text: "Hello" },
         undefined,
         [
-            [function () { console.log("Count changed:", this.count); }, []],
-            [function () { console.log("Text changed:", this.text); }, []],
+            [function () { console.log("Count changed:", this.count); }, () => []],
+            [function () { console.log("Text changed:", this.text); }, () => []],
         ]
     );
 
@@ -142,7 +145,7 @@ const ReactiveChild: React.FC<ReactiveChildProps> = ({ initialCount }) => {
         function () {
             console.log("Count changed due to prop update:", this.count);
         },
-        ["count"]
+        function() { return [this.count] }
     );
 
     return (
@@ -241,7 +244,8 @@ export const SubscribedCounter = () => {
         subscribe(() => [this.count2, this.count], (key, value, previous) => {
             console.log(`${key} changed from ${previous} to ${value}`);
         });
-    }, []);
+    }, 
+    () => []);
     return (
         <div>
             <h3>Subscribed Counter</h3>
