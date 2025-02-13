@@ -374,7 +374,11 @@ const MultipleEffectsExample = () => {
 
 
 
-### Subscribe
+## Subscribe
+
+### Features
+
+### Subscribe example
 
 ```tsx
 const SubscribedCounter = () => {
@@ -399,7 +403,15 @@ const SubscribedCounter = () => {
 };
 ```
 
+### **Subscription API**
 
+`subscribe(targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean) => () => void`
+
+| Argument    | Description                                                  |
+| ----------- | ------------------------------------------------------------ |
+| `targets`   | A function returning a reference to a property in the reactive object such as `function() { return this.counter; }` or a function returning an array of properties: `function() { return [this.counter1, this.counter2, this.obj]; }`. |
+| `callback`  | A callback function with arguments key, value and previous where key is the property name, value is the new property value and previous is the previous property value. |
+| `recursive` | For nested object properties, subscribe to all properties when true. Default is false. Use 'deep' to subscribe also to deeply nested object properties. |
 
 ## **History**
 

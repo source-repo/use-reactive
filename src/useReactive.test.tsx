@@ -353,6 +353,66 @@ describe("createReactiveStore", () => {
     expect(result.current[0].count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
+  it("should trigger a callback when a given object property updates", () => {
+    const effectMock = vi.fn();
+    const { result } = renderHook(() => useReactive({ obj: { count: 0 } }));
+    act(() => {
+      result.current[1](() => [result.current[0].obj], () => effectMock(1));
+      result.current[0].obj = { count: 1 };
+    });
+    expect(result.current[0].obj.count).toBe(1);
+    expect(effectMock).toHaveBeenCalledWith(1);
+  });
+  it("should trigger a callback when a given nested object property updates", () => {
+    const effectMock = vi.fn();
+    const { result } = renderHook(() => useReactive({ obj: { count: 0 } }));
+    act(() => {
+      result.current[1](() => [result.current[0].obj], () => effectMock(1), true);
+      result.current[0].obj.count++;
+    });
+    expect(result.current[0].obj.count).toBe(1);
+    expect(effectMock).toHaveBeenCalledWith(1);
+  });
+  it("should NOT trigger a callback when a given nested object property updates without deep recursive flag", () => {
+    const effectMock = vi.fn();
+    const { result } = renderHook(() => useReactive({ obj: { obj2: { count: 0 }} }));
+    act(() => {
+      result.current[1](() => [result.current[0].obj], () => effectMock(1), true);
+      result.current[0].obj.obj2.count++;
+    });
+    expect(result.current[0].obj.obj2.count).toBe(1);
+    expect(effectMock).not.toHaveBeenCalledWith(1);
+  });
+  it("should trigger a callback when a given nested object property updates with deep recursive flag", () => {
+    const effectMock = vi.fn();
+    const { result } = renderHook(() => useReactive({ obj: { obj2: { count: 0 }} }));
+    act(() => {
+      result.current[1](() => [result.current[0].obj], () => effectMock(1), 'deep');
+      result.current[0].obj.obj2.count++;
+    });
+    expect(result.current[0].obj.obj2.count).toBe(1);
+    expect(effectMock).toHaveBeenCalledWith(1);
+  });
+  it("should trigger a callback when a given very deeply nested object property updates", () => {
+    const effectMock = vi.fn();
+    const { result } = renderHook(() => useReactive({ obj: { obj2: { obj3: { count: 0 }}}}));
+    act(() => {
+      result.current[1](() => [result.current[0].obj], () => effectMock(1), 'deep');
+      result.current[0].obj.obj2.obj3.count++;
+    });
+    expect(result.current[0].obj.obj2.obj3.count).toBe(1);
+    expect(effectMock).toHaveBeenCalledWith(1);
+  });
+  it("should trigger a callback when a given array property updates", () => {
+    const effectMock = vi.fn();
+    const { result } = renderHook(() => useReactive({ arr: [1, 2, 3] }));
+    act(() => {
+      result.current[1](() => [result.current[0].arr], () => effectMock(1));
+      result.current[0].arr = [1, 2, 3, 4];
+    });
+    expect(result.current[0].arr).toEqual([1, 2, 3, 4]);
+    expect(effectMock).toHaveBeenCalledWith(1);
+  });
   it("should trigger a callback from init function when a given property updates", () => {
     const effectMock = vi.fn();
     let unsubscribe: () => void;
@@ -379,6 +439,26 @@ describe("createReactiveStore", () => {
     expect(result.current[0].count).toBe(2);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
+});
+
+it("should trigger a callback when any property of a given object property updates", () => {
+  const effectMock1 = vi.fn();
+  const effectMock2 = vi.fn();
+  const { result } = renderHook(() => useReactive({ sub: { count1: 0, count2: 10 } }));
+  act(() => {
+    result.current[1](() => [result.current[0].sub], (key, value, previous) => {
+      if (key === 'count1')
+        effectMock1(key, value, previous);
+      if (key === 'count2')
+        effectMock2(key, value, previous);
+    }, true)
+    result.current[0].sub.count1++;
+    result.current[0].sub.count2++;
+  });
+  expect(result.current[0].sub.count1).toBe(1);
+  expect(result.current[0].sub.count2).toBe(11);
+  expect(effectMock1).toHaveBeenCalledWith('count1', 1, 0);
+  expect(effectMock2).toHaveBeenCalledWith('count2', 11, 10);
 });
 
 describe("useReactive - History Functionality", () => {

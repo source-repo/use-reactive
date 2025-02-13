@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 
 // Callback type for subscriber
-export type SC<T> = (this: T, key: keyof T, value: unknown, previous: unknown) => void;
+export type SC<T> = (this: T, key: string | number | Symbol, value: unknown, previous: unknown) => void;
 
 // Subscribe function signature
-export type S<T> = (targets: () => unknown | unknown[], callback: SC<T>) => () => void
+export type S<T> = (targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep') => () => void
 
 // Subscriber entry
 interface SE<T> {
@@ -29,9 +29,9 @@ export interface HE<T> {
 // History interface
 export interface H<T> {
     enable(enabled?: boolean, maxDepth?: number): HistorySettings;
-    undo(index?: number):  void;
+    undo(index?: number): void;
     redo(all?: boolean): void;
-    revert (index: number): void;
+    revert(index: number): void;
     snapshot(): string | null;
     restore(id: string | null): void;
     clear(): void;
@@ -41,9 +41,9 @@ export interface H<T> {
 // Effect function type
 export type E<T> = (this: T, state: T, subscribe: S<T>, history: H<T>) => void | (() => void);
 
-export interface HistorySettings { 
+export interface HistorySettings {
     enabled?: boolean;
-    maxDepth?: number 
+    maxDepth?: number
 };
 
 /**
@@ -175,7 +175,7 @@ export function useReactive<T extends object>(
     }
     syncState(stateMapRef.current, reactiveStateRef.current, stateMap!, reactiveState);
 
-    function subscribe(targets: () => unknown | unknown[], callback: SC<T>) {
+    function subscribe(targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep') {
         let result = () => { };
         if (subscribersRef.current && targets) {
             const subscriber: SE<T> = {
@@ -184,12 +184,32 @@ export function useReactive<T extends object>(
                 targets: []
             };
             subscribersRef.current?.push(subscriber);
-            if (Array.isArray(targets)) {
-                targets.forEach(target => {
-                    target();
-                });
-            } else {
-                targets();
+            const target = targets();
+            if (recursive === 'deep' || recursive === true) {
+                // Iterate over all properties of the target object except functions and getters, also possibly handle nested objects
+                function iterate(target: { [key: string]: unknown }) {
+                    for (const key of Object.keys(target)) {
+                        const descriptor = Object.getOwnPropertyDescriptor(target, key);
+                        const isFunction = descriptor?.value && typeof descriptor.value === "function";
+                        const isGetter = descriptor?.get && typeof descriptor.get === "function";
+                        if (isFunction || isGetter) {
+                            continue;
+                        }
+                        const value = target[key];
+                        if (recursive === 'deep' && typeof value === "object" && !Array.isArray(value)) {
+                            iterate(value as { [key: string]: unknown });
+                        }
+                    }
+                }
+                if (target && typeof target === 'object' && !Array.isArray(target)) {
+                    iterate(target as { [key: string]: unknown });
+                } if (target && typeof target === 'object' && Array.isArray(target)) {
+                    for (const value of target) {
+                        if (typeof value === 'object' && !Array.isArray(value)) {
+                            iterate(value as { [key: string]: unknown });
+                        }
+                    }
+                }
             }
             subscriber.recording = false;
             result = () => {
@@ -304,7 +324,10 @@ export function useReactive<T extends object>(
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
                             if (subscriber.recording) {
-                                subscriber.targets.push({ obj, prop: key });
+                                const exists = subscriber.targets.some(target => target.obj === obj && target.prop === key);
+                                if (!exists) {
+                                    subscriber.targets.push({ obj, prop: key });
+                                }
                             }
                         }
                     }
@@ -403,10 +426,10 @@ export function useReactive<T extends object>(
     if (options?.effects) {
         function getNestedValue<T>(obj: unknown, path?: string, defaultValue?: T): T | undefined {
             if (!obj || typeof obj !== 'object' || !path) return defaultValue;
-        
+
             // Convert bracket notation to dot notation (e.g., "user.address[0].city" -> "user.address.0.city")
-            const normalizedPath = path.replace(/\[(\d+)\]/g, '.$1'); 
-        
+            const normalizedPath = path.replace(/\[(\d+)\]/g, '.$1');
+
             return normalizedPath.split('.').reduce<any>((acc, key) => {
                 if (acc === null || acc === undefined) return undefined;
                 return acc[key];
