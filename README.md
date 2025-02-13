@@ -63,6 +63,8 @@ https://stackblitz.com/edit/vitejs-vite-mcpb2gpf?file=src%2FApp.tsx
   - [Basic usage](#basic-usage)
   - [useReactive API](#usereactive-api)
   - [Examples](#examples)
+  - [Subscribe](#subscribe)
+  - [History](#history)
   - [createReactiveStore](#createreactivestore)
   - [Contributions](#contributions)
   - [License](#license)
