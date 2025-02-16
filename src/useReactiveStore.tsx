@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useRef } from "react";
 import { useReactive, S, H, RO } from "./useReactive"; // Assuming your existing function
 
+/**
+ * The context object for the reactive store.
+ */
 interface ReactiveStoreContext<T> {
     state: T;
     subscribe: S<T>;
@@ -14,11 +17,12 @@ interface ReactiveStoreContext<T> {
  * @returns {ReactiveStoreProvider, useReactiveStore} Context provider and hook
  */
 export function createReactiveStore<T extends object>(initialState: T, options?: RO<T>) {
-    const ReactiveStoreContext = createContext<ReactiveStoreContext<T> | null>(null);
-
+    // Create the context and provider
+    const ReactiveStoreContext = createContext<ReactiveStoreContext<T> | null>(null);    
     const ReactiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+        // Create the reactive state
         const [state, subscribe, history] = useReactive(initialState, { ...options, noUseState: true });
-
+        // Return the provider
         return (
             <ReactiveStoreContext.Provider value={{ state, subscribe, history }}>
                 {children}
@@ -26,36 +30,46 @@ export function createReactiveStore<T extends object>(initialState: T, options?:
         );
     };
 
+    /**
+     * Hook to access the reactive state and subscribe to changes.
+     *
+     * @returns {ReactiveStoreContext<T>} The reactive state and subscribe function
+     */
     const useReactiveStore = (): ReactiveStoreContext<T> => {
         const context = useContext(ReactiveStoreContext);
         if (!context) {
             throw new Error("useReactiveStore must be used within a ReactiveStoreProvider");
         }
         const [, setTrigger] = React.useState(0);
+        // Create a proxy to track the subscriptions
         const proxyProxy = useReactive(context.state, { noUseState: true });
+        // Track the subscriptions
         const subscriptionsRef = useRef<WeakMap<object, Map<string, boolean>> | null>(null);
         if (!subscriptionsRef.current) {
             subscriptionsRef.current = new WeakMap<object, Map<string, boolean>>();
         }
         const removerRef = useRef<() => void | null>(null);
         if (!removerRef.current) {
+            // Subscribe to the proxy to track the subscriptions
             removerRef.current = proxyProxy[1](() => proxyProxy[0], function (state, key, _value, _previous, read) {
+                // Get the map of subscriptions for the state
                 let map = subscriptionsRef.current!.get(state);
                 if (!map) {
+                    // Create a new map if it doesn't exist
                     map = new Map<string, boolean>();
                     subscriptionsRef.current!.set(state, map);
                 }
+                // Check if the key is not already subscribed
                 if (read && !map.has(key as string)) {
-                    map.set(key as string, true);
+                    // Subscribe to the key
+                    map.set(key as string, true);                    
                     context.subscribe(() => state[key as keyof T], () => {
                         setTrigger((prev: any) => prev + 1);
                     });
                 }
             }, 'deep', true)
-        }
-
+        }        
         return { state: proxyProxy[0], subscribe: context.subscribe, history: context.history };
     }
-
     return [ReactiveStoreProvider, useReactiveStore] as const;
 }

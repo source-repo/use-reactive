@@ -50,6 +50,7 @@ export interface HE<T> {
     value: unknown;
 };
 
+// History settings
 export interface HistorySettings {
     enabled?: boolean;
     maxDepth?: number
@@ -64,6 +65,7 @@ export interface HistorySettings {
  */
 type PropertyMap = Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>;
 
+// Utility function to compare two objects
 function isEqual(x: any, y: any): boolean {
     const ok = Object.keys, tx = typeof x, ty = typeof y;
     return x && y && tx === 'object' && tx === ty ? (
@@ -188,19 +190,25 @@ export function useReactive<T extends object>(
         stateMap = new Map();
         stateMapRef.current.set(reactiveStateRef.current, stateMap);
     }
+    // Sync the state with the initial object
     syncState(stateMapRef.current, reactiveStateRef.current, stateMap!, reactiveState);
 
+    // Subscribe to the state object and track changes
     function subscribe(targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep', onRead?: boolean) {
         let result = () => { };
         if (subscribersRef.current && targets) {
+            // Create a new subscriber object, start recording target accesses
             const subscriber: SE<T> = {
                 callback,
                 recording: true,
                 onRead,
                 targets: []
             };
+            // Add the subscriber to the list
             subscribersRef.current?.push(subscriber);
+            // Get the target object
             const target = targets();
+            // Handle nested targets
             if (recursive === 'deep' || recursive === true) {
                 // Iterate over all properties of the target object except functions and getters, also possibly handle nested objects
                 function iterate(target: { [key: string]: unknown }) {
@@ -227,6 +235,7 @@ export function useReactive<T extends object>(
                     }
                 }
             }
+            // Stop recording target accesses
             subscriber.recording = false;
             result = () => {
                 const index = subscribersRef.current?.indexOf(subscriber);
@@ -238,6 +247,9 @@ export function useReactive<T extends object>(
         return result;
     }
 
+    // History functions
+
+    // Enable/disable history
     const enableHistory = (enabled?: boolean, maxDepth?: number) => {
         if (enabled !== undefined) {
             historySettingsRef.current.enabled = enabled;
@@ -251,6 +263,9 @@ export function useReactive<T extends object>(
         return historySettingsRef.current;
     };
 
+    // Undo/redo functions
+
+    // Undo the last change
     const undoLast = () => {
         if (historyRef.current.length === 0) return;
         const lastChange = historyRef.current.pop();
@@ -265,6 +280,7 @@ export function useReactive<T extends object>(
         }
     };
 
+    // Undo the last change or a specific change
     const undo = (index?: number) => {
         if (index !== undefined && (index < 0 || index >= historyRef.current.length)) return;
         if (index !== undefined) {
@@ -276,6 +292,7 @@ export function useReactive<T extends object>(
         }
     };
 
+    // Redo the last undone change (or all undone changes)
     const redo = (all?: boolean) => {
         if (redoStack.current.length === 0) return;
         do {
@@ -286,6 +303,7 @@ export function useReactive<T extends object>(
         } while (all && redoStack.current.length > 0);
     };
 
+    // Revert to a specific change
     const revert = (index: number) => {
         if (index < 0 || index >= historyRef.current.length) return;
         const entry = historyRef.current[index];
@@ -298,16 +316,19 @@ export function useReactive<T extends object>(
         }
     };
 
+    // Clear the history
     const clear = () => {
         historyRef.current = []
         redoStack.current = []
         setTrigger((prev) => prev + 1);
     }
 
+    // Get the current snapshot
     const snapshot = () => {
         return historyRef.current.length > 0 ? historyRef.current[historyRef.current.length - 1].id : null;
     };
 
+    // Restore a specific snapshot
     const restore = (id: string | null) => {
         let index
         if (id === null) {
@@ -328,6 +349,7 @@ export function useReactive<T extends object>(
         }
     };
 
+    // History object
     const history = { enable: enableHistory, clear, undo, redo, revert, snapshot, restore, entries: historyRef.current }
 
     // Create a proxy for the state object if it doesn't exist
