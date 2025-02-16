@@ -90,7 +90,13 @@ const syncState = <T extends object>(
     newObj?: T
 ): void => {
     for (const key of Object.keys(obj) as (keyof T)[]) {
-        const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+        let descriptor = Object.getOwnPropertyDescriptor(obj, key);
+        if (newObj) {
+            const newDescriptor = Object.getOwnPropertyDescriptor(newObj, key);
+            if (newDescriptor) {
+                descriptor = newDescriptor;
+            }
+        }
 
         // Determine if the property is a function or getter
         const isFunction = descriptor?.value && typeof descriptor.value === "function";
