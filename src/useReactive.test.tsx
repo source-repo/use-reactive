@@ -446,7 +446,7 @@ it("should trigger a callback when any property of a given object property updat
   const effectMock2 = vi.fn();
   const { result } = renderHook(() => useReactive({ sub: { count1: 0, count2: 10 } }));
   act(() => {
-    result.current[1](() => [result.current[0].sub], (key, value, previous) => {
+    result.current[1](() => [result.current[0].sub], (state, key, value, previous) => {
       if (key === 'count1')
         effectMock1(key, value, previous);
       if (key === 'count2')

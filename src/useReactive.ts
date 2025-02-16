@@ -1,29 +1,31 @@
 import { useState, useRef, useEffect } from "react";
 
 // Callback type for subscriber
-export type SC<T> = (this: T, key: string | number | Symbol, value: unknown, previous: unknown) => void;
+export type SC<T> = (this: T, state: T, key: string | number | Symbol, value: unknown, previous: unknown, read?: boolean) => void;
 
 // Subscribe function signature
-export type S<T> = (targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep') => () => void
+export type S<T> = (targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep', onRead?: boolean) => () => void
+
+// Effect function type
+export type E<T> = (this: T, state: T, subscribe: S<T>, history: H<T>) => void | (() => void);
+
+// Options
+export interface RO<T> {
+    init?: (this: T, state: T, subscribe: S<T>, history: H<T>) => void,
+    effects?: Array<[E<T>, (this: T, state: T, subscribe: S<T>, history: H<T>) => unknown[]]>,
+    historySettings?: HistorySettings,
+    noUseState?: boolean
+}
 
 // Subscriber entry
 interface SE<T> {
     recording: boolean,
+    onRead?: boolean,
     callback: SC<T>,
     targets: {
         obj: object,
         prop: keyof T
     }[]
-};
-
-// History entry
-export interface HE<T> {
-    id: string;
-    timestamp: number;
-    obj: object;
-    key: keyof T;
-    previous: unknown;
-    value: unknown;
 };
 
 // History interface
@@ -38,8 +40,15 @@ export interface H<T> {
     entries: HE<T>[];
 };
 
-// Effect function type
-export type E<T> = (this: T, state: T, subscribe: S<T>, history: H<T>) => void | (() => void);
+// History entry
+export interface HE<T> {
+    id: string;
+    timestamp: number;
+    obj: object;
+    key: keyof T;
+    previous: unknown;
+    value: unknown;
+};
 
 export interface HistorySettings {
     enabled?: boolean;
@@ -129,12 +138,6 @@ const syncState = <T extends object>(
     }
 };
 
-export interface RO<T> {
-    init?: (this: T, state: T, subscribe: S<T>, history: H<T>) => void,
-    effects?: Array<[E<T>, (this: T, state: T) => unknown[]]>,
-    historySettings?: HistorySettings,
-}
-
 /**
  * useReactive - A custom React hook that creates a reactive state object.
  * 
@@ -155,8 +158,14 @@ export function useReactive<T extends object>(
         throw new Error("useReactive should only be used in the browser");
     }
     const reactiveStateRef = useRef(reactiveState);
-    const [, setTrigger] = useState(0); // State updater to trigger re-renders
+    const [, setTriggerF] = useState(0); // State updater to trigger re-renders
+    const setTrigger = (foo: (prev: number) => number) => { 
+        if (!options?.noUseState) {
+            setTriggerF(foo)
+        }   
+    };
     const proxyRef = useRef<T>(null);
+    const nestedproxyrefs = useRef<Map<object, T>>(new Map());
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(new WeakMap());
     const subscribersRef = useRef<Array<SE<T>>>([]);
     const historyRef = useRef<HE<T>[]>([]);
@@ -175,12 +184,13 @@ export function useReactive<T extends object>(
     }
     syncState(stateMapRef.current, reactiveStateRef.current, stateMap!, reactiveState);
 
-    function subscribe(targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep') {
+    function subscribe(targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep', onRead?: boolean) {
         let result = () => { };
         if (subscribersRef.current && targets) {
             const subscriber: SE<T> = {
                 callback,
                 recording: true,
+                onRead,
                 targets: []
             };
             subscribersRef.current?.push(subscriber);
@@ -331,16 +341,16 @@ export function useReactive<T extends object>(
                             }
                         }
                     }
+                    let value: any
 
                     // Handle computed properties (getters)
                     const descriptor = Object.getOwnPropertyDescriptor(obj, key);
-                    if (descriptor && typeof descriptor.get === "function") {
-                        const newValue = descriptor.get.call(proxy);
-                        return newValue;
-                    }
-
-                    let value: any
-                    value = obj[key];
+                    const isFunction = descriptor?.value && typeof descriptor.value === "function";
+                    const isGetter = descriptor?.get && typeof descriptor.get === "function";
+                    if (isGetter) {
+                        value = descriptor.get!.call(proxy);
+                    } else
+                        value = obj[key];
 
                     // Proxy arrays to trigger updates on mutating methods
                     if (Array.isArray(value)) {
@@ -373,14 +383,29 @@ export function useReactive<T extends object>(
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        return createReactiveProxy(value as T);
+                        let result = nestedproxyrefs.current.get(value);
+                        if (!result) {
+                            result = createReactiveProxy(value as T);
+                            nestedproxyrefs.current.set(value, result);
+                        }
+                        return result;
                     }
 
                     // Ensure functions are bound to the proxy object
-                    if (typeof value === "function") {
+                    if (isFunction) {
                         return function (...args: any[]) {
                             return value.apply(proxy, args); // Now correctly bound to the current proxy
                         };
+                    }
+
+                    if (subscribersRef.current) {
+                        for (const subscriber of subscribersRef.current) {
+                            if (subscriber.onRead && !subscriber.recording) {
+                                if (subscriber.targets.some(target => target.obj === obj && target.prop === prop)) {
+                                    subscriber.callback.call(proxy, proxy, prop as keyof T, value, value, true);
+                                }
+                            }
+                        }
                     }
 
                     return value;
@@ -404,7 +429,7 @@ export function useReactive<T extends object>(
                         for (const subscriber of subscribersRef.current) {
                             if (!subscriber.recording) {
                                 if (subscriber.targets.some(target => target.obj === obj && target.prop === prop)) {
-                                    subscriber.callback.call(proxy, prop as keyof T, value, previousValue);
+                                    subscriber.callback.call(proxy, proxy, prop as keyof T, value, previousValue, false);
                                 }
                             }
                         }
@@ -449,7 +474,7 @@ export function useReactive<T extends object>(
                 return () => {
                     if (cleanup) cleanup();
                 };
-            }, effectDeps ? getDeps(effectDeps.call(reactiveStateRef.current, reactiveStateRef.current)) : []);
+            }, effectDeps ? getDeps(effectDeps.call(reactiveStateRef.current, reactiveStateRef.current, subscribe, history)) : []);
         }
     }
 
