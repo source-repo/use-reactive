@@ -14,7 +14,7 @@ You can `subscribe` to property changes.
 
 State modifications can be saved to a history with support for `undo`, `redo`, `revert` and `snapshot` / `restore`. 
 
-Additionally, a companion React context is available for sharing reactive state across a component hierarchy—see [createReactiveStore](#createReactiveStore) below.
+A companion React context is available for sharing reactive state effectively across a component hierarchy—see [createReactiveStore](#createReactiveStore) below. 
 
 ```tsx
 const [state] = useReactive(
@@ -475,11 +475,11 @@ const ExampleComponent = () => {
 
 ## createReactiveStore
 
-The `createReactiveStore` function provides a globally shared reactive state using a React context and `useReactive`. It allows components to access and modify a reactive state object while ensuring updates trigger re-renders.
+The `createReactiveStore` function provides a shared reactive state using a React context and `useReactive`. It allows components to access and modify a reactive state while ensuring property updates trigger re-renders. Only components using a changed property will re-render.
 
 ### Usage
 
-#### Define a Global Store
+#### Define a shared store
 
 Initialize the global store like this:
 
@@ -494,7 +494,7 @@ const [ ReactiveStoreProvider, useReactiveStore ] = createReactiveStore({
 
 
 
-#### Wrap the Application
+#### Wrap the application
 
 Wrap your components with your`ReactiveStoreProvider` to enable global state access:
 
@@ -503,7 +503,7 @@ function App() {
     return (
         <ReactiveStoreProvider>
             <div>
-                <h2>Global Reactive State Example</h2>
+                <h3>Shared reactive state example</h3>
                 <Counter />
                 <UserInfo />
             </div>
@@ -514,15 +514,14 @@ function App() {
 
 
 
-#### Use the global store in Components
+#### Use the global store in components
 
 ```
 const Counter = () => {
     const store = useReactiveStore();
-
     return (
         <div>
-            <h2>Counter: {store.state.counter}</h2>
+            <h4>Counter: {store.state.counter}</h4>
             <button onClick={() => store.state.counter++}>Increment</button>
             <button onClick={() => store.state.counter--}>Decrement</button>
         </div>
@@ -531,10 +530,9 @@ const Counter = () => {
 
 const UserInfo = () => {
     const store = useReactiveStore();
-
     return (
         <div>
-            <h2>User: {store.state.user.name}, Age: {store.state.user.age}, Counter: { store.state.counter }</h2>
+            <h4>User: {store.state.user.name}, Age: {store.state.user.age}</h4>
             <button onClick={() => store.state.user.age++}>Increase Age</button>
         </div>
     );
@@ -551,7 +549,7 @@ const UserInfo = () => {
 
 **Flexible** - Can be used in any React project requiring a shared state.
 
-This makes `createReactiveStore` a tool for managing global reactive state in React applications.
+This makes `createReactiveStore` a tool for managing shared reactive state in React applications.
 
 
 
