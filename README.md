@@ -16,11 +16,9 @@ State modifications can be saved to a history with support for `undo`, `redo`, `
 
 A companion React context is available for sharing reactive state effectively across a component hierarchy—see [createReactiveStore](#createReactiveStore) below. 
 
-Basic usage:
+Basic usage inside a React component::
 
 ```tsx
-import { useReactive } from "@diginet/use-reactive";
-
 const [state] = useReactive(
   { // Reactive state object with methods
       count: 0,
@@ -32,7 +30,7 @@ const [state] = useReactive(
       init() { console.log('Only runs once!') }
 });
 
-<div>
+return <div>
   <p>Count: { state.count }</p>
   <button onClick={ state.increment }>Increment</button>
 </div>
@@ -90,7 +88,7 @@ yarn add @diginet/use-reactive
 
 ## API
 
-###### JavaScript (TL;DR)
+### JavaScript (TL;DR)
 
 `const [state, subscribe, history] = useReactive(inputState, options)`
 
@@ -103,7 +101,7 @@ The returned tuple:
 - `subscribe`: Optional subscribe method with a callback. Subscribe to single properties or all properties of an object.
 - `history`: Optional API for history functions such as undo, redo, snapshot and restore. Undo and restore applies the individual changes in reverse order.
 
-###### TypeScript
+### TypeScript
 
 ```typescript
 const [ state, subscribe, history ] = useReactive<T extends object>( inputState: T, options?: RO<T> ): [ T, S<T>, H<T> ]
@@ -351,8 +349,8 @@ const MultipleEffectsExample = () => {
         { count: 0, text: "Hello" },
         {
         	effects: [
-	            [function () { console.log("Count changed:", this.count); }, ()=> [this.count]],
-    	        [function () { console.log("Text changed:", this.text); }, () => [this.text]],
+	            [function () { console.log("Count changed:", this.count); }, function () { return [this.count];}],
+    	        [function () { console.log("Text changed:", this.text); }, function () { return [this.text];}],
         	]
         }
     );
