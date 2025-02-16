@@ -214,7 +214,8 @@ function ReactiveStoreUser() {
     const store = useReactiveStore();
     return (
         <div>
-            <h2>Reactive store user</h2>
+            _________________________________
+            <h3>Reactive store user</h3>
             <p>Name: {store.state.user.name}, Age: {store.state.user.age}</p>
             <button onClick={() => store.state.user.name = "Jane Doe"}>Change name</button>
             <button onClick={() => store.state.user.age++}>Increment age</button>
@@ -227,7 +228,7 @@ function AnotherReactiveStoreUser() {
     const store = useReactiveStore();
     return (
         <div>
-            <h2>Reactive store user</h2>
+            <h3>Another Reactive store user</h3>
             <p>Name: {store.state.user.name}, Age: {store.state.user.age}</p>
             <button onClick={() => store.state.user.name = "Jane Doe"}>Change name</button>
             <button onClick={() => store.state.user.age++}>Increment age</button>
@@ -237,63 +238,53 @@ function AnotherReactiveStoreUser() {
 }
 
 export const SubscribedCounter = () => {
-    const [state, subscribe] = useReactive({
+    const [items, setItems] = useState<Array<string>>([]);
+    const [state] = useReactive({
         count: 0,
         count2: 0,
     },
         {
-            init() {
+            init(_state, subscribe) {
                 this.count = 10;
-                console.log("SubscribedCounter initialized");
-            },
-            effects: [[
-                function (_state, subscribe) {
-                    console.log("SubscribedCounter effect");
-                    subscribe(() => [this.count2, this.count], (key, value, previous) => {
-                        console.log(`${key} changed from ${previous} to ${value}`);
-                    });
-                },
-                () => []
-            ]],
+                setItems(items => [...items, "SubscribedCounter initialized"]);
+                subscribe(() => [this.count2, this.count], (key, value, previous) => {
+                    setItems(items => [...items, `${key} changed from ${previous} to ${value}`]);
+                })
+        }
         });
     return (
         <div>
+            _________________________________
             <h3>Subscribed Counter</h3>
             <p>Count: {state.count} Count2: {state.count2}</p>
             <button onClick={() => state.count++}>Increment</button>
             <button onClick={() => state.count--}>Decrement</button>
             <button onClick={() => state.count2++}>Increment 2</button>
-            <button onClick={() => state.count2--}>Decrement s</button>
+            <button onClick={() => state.count2--}>Decrement 2</button>
+            <p>Items: <button onClick={() => setItems([])}>Clear</button></p>
+            {items.map((item, index) => (
+                <p key={index}>{item}</p>
+            ))}
         </div>
     );
 };
 
-const SubscribedCounter2 = () => {
-    const [state] = useReactive({
-        count: 0,
-    },
-        {
-            init(state, subscribe) {
-                subscribe(() => [state.count], (key, value, previous) => {
-                    console.log(`${key} changed from ${previous} to ${value}`);
-                    console.log(this);
-                });
-            }
-        });
+const ExampleComponent = () => {
+    const [state, , history] = useReactive({ count: 0 }, { historySettings: { enabled: true } });
     return (
         <div>
-            <h3>Subscribed Counter2</h3>
-            <p>Count: {state.count}</p>
+            _________________________________
+            <h3>Count: {state.count}</h3>
             <button onClick={() => state.count++}>Increment</button>
-            <button onClick={() => state.count--}>Decrement</button>
+            <button onClick={() => history.undo()}>Undo</button>
+            <button onClick={() => history.redo()}>Redo</button>
         </div>
     );
 };
 
-const TheCheckBox = ({ caption, checked, setChecked }: { caption: string, checked: boolean, setChecked: (checked: boolean) => void }) => {
+const CheckBox = ({ caption, checked, setChecked }: { caption: string, checked: boolean, setChecked: (checked: boolean) => void }) => {
     return (
         <div>
-            <h3>Checkbox</h3>
             <label>
                 <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
                 {caption}
@@ -309,8 +300,9 @@ const ReactiveHistoryExample = () => {
 
     return (
         <div>
-            <h2>History</h2>
-            <TheCheckBox caption="Some boolean" checked={state.checked} setChecked={(checked) => state.checked = checked} />
+            _________________________________
+            <h3>History</h3>
+            <CheckBox caption="Some boolean" checked={state.checked} setChecked={(checked) => state.checked = checked} />
             <input
                 type="text"
                 value={state.sub.text1}
@@ -323,17 +315,10 @@ const ReactiveHistoryExample = () => {
                 onChange={(e) => (state.sub.text2 = e.target.value)}
             />
             <br />
-            <label>
-                <input
-                    type="checkbox"
-                    checked={historyEnabled}
-                    onChange={(e) => {
-                        setHistoryEnabled(e.target.checked);
-                        history.enable(e.target.checked, 5);
-                    }}
-                />
-                Enable History
-            </label>
+            <CheckBox caption="Enable history" checked={historyEnabled} setChecked={(checked) => {
+                setHistoryEnabled(checked);
+                history.enable(checked, 5);
+            }} />
             <br />
             <button onClick={() => history.undo()} disabled={!historyEnabled}>Undo</button>
             <button onClick={() => history.undo(0)} disabled={!historyEnabled}>Undo all</button>
@@ -345,7 +330,7 @@ const ReactiveHistoryExample = () => {
             <button onClick={() => history.restore(snapshot!)} disabled={snapshot === undefined || !historyEnabled}>
                 Restore snapshot
             </button>
-            <h3>Changes:</h3>
+            <h4>Changes:</h4>
             <ul style={{ minHeight: '800px', overflowY: 'scroll' }}>
                 {history.entries.map((entry, index) => (
                     <div key={index} style={{ display: 'flex' }}>
@@ -363,18 +348,6 @@ const ReactiveHistoryExample = () => {
     );
 };
 
-const ExampleComponent = () => {
-    const [state, , history] = useReactive({ count: 0 }, { historySettings: { enabled: true } });
-    return (
-        <div>
-            <h2>Count: {state.count}</h2>
-            <button onClick={() => state.count++}>Increment</button>
-            <button onClick={() => history.undo()}>Undo</button>
-            <button onClick={() => history.redo()}>Redo</button>
-        </div>
-    );
-};
-
 // Super Component to Include All Examples
 export const Examples = () => {
     return (
@@ -385,15 +358,14 @@ export const Examples = () => {
             <AsyncExample />
             <NestedStateExample />
             <SingleEffectExample />
-            <MultipleEffectsExample />
             <EffectDependencyExample />
+            <ArrayExample />
+            <MultipleEffectsExample />
             <ReactiveStoreProvider>
                 <ReactiveStoreUser />
                 <AnotherReactiveStoreUser />
             </ReactiveStoreProvider>
-            <ArrayExample />
             <SubscribedCounter />
-            <SubscribedCounter2 />
             <ExampleComponent />
             <ReactiveHistoryExample />
         </div>

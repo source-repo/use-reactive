@@ -39,19 +39,21 @@ Use directly in markup:
 </div>
 ```
 
-`useReactive` features:
+## Features
 
-- Fine-grained reactivity through direct property access. 
-- **Intellisense** and **type checking** through generics when using TypeScript 
-- Methods on the state object are automatically bound, allowing `this` to be used within them. 
-- A function to run once only may be defined on the options argument.
-- Supports computed properties (getters). 
-- State changes trigger partial React re-render.
-- Supports **async** methods.
-- Arbitrarily nested reactive state objects
-- Add effect handling like `useEffect` in options.
-- **Subscribe** to property changes.
-- **Undo** changes with history.
+- ⚡ **Fine-grained reactivity** with direct property access.
+- 🏗️ **Full TypeScript support** with generics for `IntelliSense` and type checking.
+- 🔄 **Auto-bound methods** on the state object, allowing `this` to be used inside them.
+- 🎯 **One-time initialization function** can be specified in the options argument.
+
+- 🧮 **Supports computed properties** (via getters).
+
+- ⚡ **Efficient rendering**: State changes trigger only partial React re-renders.
+- ⏳ **Supports asynchronous methods** seamlessly.
+- 🌳 **Deeply nested reactive objects** are fully supported.
+- 🔁  **Effect handling** similar to `useEffect`, configurable via options.
+- 📡 **Property-level subscriptions** to react to specific state changes.
+- 🕒 **Built-in history management** with undo functionality.
 
 ## Live preview
 
@@ -125,11 +127,17 @@ T is the state object, S is a subscribe function and E is an effect function, li
 
 - `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
 - options?: Optional object with options:
-  - `init?`: Function to  runs once only.
+  - `init?`: Function to  runs once only. Arguments:
+    - state: The reactive state object. Can also be referenced by `this`  if not using an arrow function.
+    - subscribe: The subscribe function.
+    - history: The history API
   - `effects?`: Array of side effects that can run when a dependency changes.  Each effect is a pair of:
-    - An effect function. Return a cleanup function if needed.
+    - An effect function. Return a cleanup function if needed. Arguments:
+      - state: The reactive state object. Can also be referenced by `this`  if not using an arrow function.
+      - subscribe: The subscribe function.
+      - history: The history API
     - A function returning a dependency array.
-    
+  
   - historySettings?: Settings for the `history` function.
 
 
