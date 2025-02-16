@@ -18,9 +18,18 @@ const Sum = ({ value }: { value: number }) => {
             <h3>Sum example</h3>
             <p>Sum: {state.sum}</p>
             <button onClick={() => setSomeState(someState + 2)}>Increase someState</button>
+            {Math.random()}
         </div>
     );
 };
+
+const TestSum = () => {
+    const [state] = useReactive({ value: 0 });
+    return <div>
+        <Sum value={state.value} />
+        <button onClick={() => state.value++}>Increment value</button>
+    </div>
+}
 
 const [ReactiveStoreProvider1, useReactiveStore1] = createReactiveStore({
     counter1: 0,
@@ -92,14 +101,6 @@ export const StoreUserInfo = memo(() => {
     );
 });
 
-
-const TestSum = () => {
-    const [state] = useReactive({ value: 0 });
-    return <div>
-        <Sum value={state.value} />
-        <button onClick={() => state.value++}>Increment value</button>
-    </div>
-}
 
 const Counter1 = memo(({ label, count, onIncrement }: { label: string; count: number; onIncrement: () => void }) => {
     const renders = useRef(0);

@@ -247,7 +247,7 @@ export const SubscribedCounter = () => {
             init(_state, subscribe) {
                 this.count = 10;
                 setItems(items => [...items, "SubscribedCounter initialized"]);
-                subscribe(() => [this.count2, this.count], (key, value, previous) => {
+                subscribe(() => [this.count2, this.count], (_state, key, value, previous) => {
                     setItems(items => [...items, `${key} changed from ${previous} to ${value}`]);
                 })
         }
@@ -317,7 +317,7 @@ const ReactiveHistoryExample = () => {
             <br />
             <CheckBox caption="Enable history" checked={historyEnabled} setChecked={(checked) => {
                 setHistoryEnabled(checked);
-                history.enable(checked, 5);
+                history.enable(checked);
             }} />
             <br />
             <button onClick={() => history.undo()} disabled={!historyEnabled}>Undo</button>
