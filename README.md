@@ -8,7 +8,7 @@
 
 `useReactive` is a custom React hook that provides a reactive state object. 
 
-Methods on this object use `this` to access members, enabling an object-oriented approach to encapsulating data and behavior.
+Methods on the object use `this` to access members, enabling an object-oriented approach to encapsulating data and behavior.
 
 You can `subscribe` to property changes.
 
