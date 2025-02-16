@@ -16,7 +16,11 @@ State modifications can be saved to a history with support for `undo`, `redo`, `
 
 A companion React context is available for sharing reactive state effectively across a component hierarchy—see [createReactiveStore](#createReactiveStore) below. 
 
+Basic usage:
+
 ```tsx
+import { useReactive } from "@diginet/use-reactive";
+
 const [state] = useReactive(
   { // Reactive state object with methods
       count: 0,
@@ -27,17 +31,16 @@ const [state] = useReactive(
   { // Options
       init() { console.log('Only runs once!') }
 });
-```
 
-Use directly in markup:
-
-
-```tsx
 <div>
   <p>Count: { state.count }</p>
   <button onClick={ state.increment }>Increment</button>
 </div>
 ```
+
+Note: The function `increment` above can be declared without the `function` keyword when using object shorthand syntax.
+
+
 
 ## Features
 
@@ -62,8 +65,7 @@ https://stackblitz.com/edit/vitejs-vite-mcpb2gpf?file=src%2FApp.tsx
 ## Contents
 
   - [Installation](#installation)
-  - [Basic usage](#basic-usage)
-  - [useReactive API](#usereactive-api)
+  - [API](#api)
   - [Examples](#examples)
   - [Subscribe](#subscribe)
   - [History](#history)
@@ -84,48 +86,34 @@ or
 yarn add @diginet/use-reactive
 ```
 
-## Basic usage
 
-```tsx
-import { useReactive } from "@diginet/use-reactive";
 
-function ExampleComponent() {
-  const [state] = useReactive({
-    count: 0,
-    increment() {
-      this.count++;
-    },
-  });
-
-  return <div>
-      <p>Count: {state.count}</p>
-      <button onClick={state.increment}>Increment</button>
-    </div>;
-}
-```
-
-Note: The function `increment` above can be declared without the `function` keyword when using object shorthand syntax.
-
-## useReactive API
+## API
 
 ###### JavaScript (TL;DR)
 
-`const [state, subscribe, history] = useReactive(state, options)`
+`const [state, subscribe, history] = useReactive(inputState, options)`
 
-- `state`: The state object with properties and methods bound to `this`.
-- `options?`: An options object: { init,  effects, historySettings }
+- `inputState`: The state object with properties and methods.
+- `options?`: An options object, see below.
+
+The returned tuple:
+
+- `state`: The reactive state object (a Proxy) to the initial state that is continuously updated on subsequent re-renders with any changes such as props and functions. Functions are bound to this object making it possible to use `this`.
+- `subscribe`: Optional subscribe method with a callback. Subscribe to single properties or all properties of an object.
+- `history`: Optional API for history functions such as undo, redo, snapshot and restore. Undo and restore applies the individual changes in reverse order.
 
 ###### TypeScript
 
 ```typescript
-const [ state, subscribe, history ] = useReactive<T extends object>( state: T, options?: RO<T> ): [ T, S<T>, H<T> ]
+const [ state, subscribe, history ] = useReactive<T extends object>( inputState: T, options?: RO<T> ): [ T, S<T>, H<T> ]
 ```
 
 T is the state object, S is a subscribe function and E is an effect function, like React useEffect. RO is an `options` object, see below.
 
 #### Parameters:
 
-- `state`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the state object. Can be declared without the `function` keyword (object shorthand notation). Do not use an arrow function as this will make `this` refer to the global scope.
+- `inputState`: The state object. Can be of any type.  Functions may be async and the `this` keyword will refer to the returned Proxy of this object. Functions can be declared without the `function` keyword (object shorthand notation). Do not use arrow functions, they will make `this` refer to the global scope.
 - options?: Optional object with options:
   - `init?`: Function to  runs once only. Arguments:
     - state: The reactive state object. Can also be referenced by `this`  if not using an arrow function.

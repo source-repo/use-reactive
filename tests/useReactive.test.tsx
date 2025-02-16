@@ -1,7 +1,6 @@
 import React from "react";
 import { JSDOM } from 'jsdom';
-import { useReactive } from './useReactive.js';
-import { createReactiveStore } from './useReactiveStore.js';
+import { useReactive } from '../src/useReactive.js';
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, beforeAll, vi, test, vitest } from 'vitest';
 import { TextEncoder, TextDecoder } from 'util';
@@ -18,24 +17,23 @@ beforeAll(() => {
   globalThis.navigator = dom.window.navigator;
 });
 
-describe('useReactive Hook', () => {
-  it('should initialize correctly', () => {
+// Utility function for delaying async operations
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+describe('General', () => {
+  test('should initialize correctly', () => {
     const { result } = renderHook(() => useReactive({ count: 0 }));
     expect(result.current[0].count).toBe(0);
   });
 
-  it('should update state correctly', () => {
+  test('should update state correctly', () => {
     const { result } = renderHook(() => useReactive({ count: 0 }));
     act(() => {
       result.current[0].count++;
     });
     expect(result.current[0].count).toBe(1);
   });
-});
-
-// Test for nested objects
-describe('useReactive with Objects', () => {
-  it('should allow updating nested properties', () => {
+  test('should allow updating nested properties', () => {
     const { result } = renderHook(() =>
       useReactive({
         user: {
@@ -50,35 +48,7 @@ describe('useReactive with Objects', () => {
     });
     expect(result.current[0].user.age).toBe(31);
   });
-});
-
-// Test for reactive effects
-describe('useReactive with Effects', () => {
-  it('should support effects when dependencies change', () => {
-    const effectMock = vi.fn();
-    const { result, rerender } = renderHook(() =>
-      useReactive(
-        { count: 0 },
-        {
-          effects: [[ function (state) {
-            effectMock(state.count);
-          },
-          function () { return [this.count] }
-        ]]}
-      )
-    );
-
-    act(() => {
-      result.current[0].count++;
-    });
-    rerender();
-    expect(effectMock).toHaveBeenCalledWith(1);
-  });
-});
-
-// Test for reactive arrays
-describe('useReactive with Arrays', () => {
-  it('should allow modifying an array', () => {
+  test('should allow modifying an array', () => {
     const { result } = renderHook(() =>
       useReactive({
         todos: ['Learn React'],
@@ -100,11 +70,7 @@ describe('useReactive with Arrays', () => {
     });
     expect(result.current[0].todos).toEqual(['Learn React', 'Master TypeScript', 'Master Cobol']);
   });
-});
-
-// Test for call to init argument
-describe('useReactive init function', () => {
-  it('should call init function on creation', () => {
+  test('should call init function on creation', () => {
     const initMock = vi.fn();
     const { } = renderHook(() =>
       useReactive({
@@ -118,12 +84,6 @@ describe('useReactive init function', () => {
 
     expect(initMock).toHaveBeenCalled();
   });
-});
-
-// Utility function for delaying async operations
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-describe("useReactive Hook", () => {
   test("initial state is reactive and accessible", () => {
     const { result } = renderHook(() => useReactive({ count: 0 }));
     expect(result.current[0].count).toBe(0);
@@ -198,6 +158,31 @@ describe("useReactive Hook", () => {
     });
     expect(result.current[0].nested.value).toBe(11);
   });
+});
+
+// Test for reactive effects
+describe('Effects', () => {
+  test('should support effects when dependencies change', () => {
+    const effectMock = vi.fn();
+    const { result, rerender } = renderHook(() =>
+      useReactive(
+        { count: 0 },
+        {
+          effects: [[function (state) {
+            effectMock(state.count);
+          },
+          function () { return [this.count] }
+          ]]
+        }
+      )
+    );
+
+    act(() => {
+      result.current[0].count++;
+    });
+    rerender();
+    expect(effectMock).toHaveBeenCalledWith(1);
+  });
 
   test("effects run when dependencies change", () => {
     const effectMock = vitest.fn();
@@ -212,138 +197,79 @@ describe("useReactive Hook", () => {
         {
           effects: [[
             function (state) {
-            console.log('this: ', this);
-            const { count } = state;
-            console.log(count)
-            effectMock(this.count);
-          },
-          function () { 
-            return [propCount] // Using component prop as dependency
-          }
-        ]]}),
+              const { count } = state;
+              effectMock(this.count);
+            },
+            function () {
+              return [propCount] // Using component prop as dependency
+            }
+          ]]
+        }),
       { initialProps: { propCount: 0 } }
     );
     expect(effectMock).toHaveBeenCalledWith(0);
     rerender({ propCount: 1 });
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-});
 
-test("multiple effects run when dependencies change", () => {
-  const effectMock1 = vitest.fn();
-  const effectMock2 = vitest.fn();
-  const { result, rerender } = renderHook(({ propCount, anotherProp }) =>
-    useReactive(
-      {
-        count: propCount,
-        value: anotherProp,
-        count2: 33,
-      },
-      {
-        effects: [
-          [
-            function () {
-              effectMock1(this.count);
-            },
-            () => [propCount],
-          ],
-          [
-            function () {
-              effectMock2(this.value);
-            },
-            () => [anotherProp],
-          ],
-          [
-            function () {
-              effectMock1(this.count2);
-            },
-            function () { 
-              return [this.count2] 
-            },
-          ],
-        ]
-      }
-    ),
-    { initialProps: { propCount: 0, anotherProp: "a" } }
-  );
-  expect(effectMock1).toHaveBeenCalledWith(0);
-  expect(effectMock2).toHaveBeenCalledWith("a");
-
-  rerender({ propCount: 1, anotherProp: "b" });
-
-  expect(effectMock1).toHaveBeenCalledWith(1);
-  expect(effectMock2).toHaveBeenCalledWith("b");
-
-  act(() => {
-    result.current[0].count2++;
-  });
-
-  rerender({ propCount: 1, anotherProp: "b" });
-
-  expect(effectMock1).toHaveBeenCalledWith(34);
-
-});
-
-describe("createReactiveStore", () => {
-  it("should provide reactive state to components", () => {
-    const [Provider, useStore] = createReactiveStore({ counter: 0 });
-
-    const { result } = renderHook(() => useStore(), {
-      wrapper: ({ children }) => <Provider>{children}</Provider>,
-    });
-
-    expect(result.current.state.counter).toBe(0);
-
-    act(() => {
-      result.current.state.counter++;
-    });
-
-    expect(result.current.state.counter).toBe(1);
-  });
-
-  it("should throw an error when used outside of provider", () => {
-    const [, useStore] = createReactiveStore({ counter: 0 });
-
-    expect(() => renderHook(() => useStore())).toThrow(
-      "useReactiveStore must be used within a ReactiveStoreProvider"
+  test("multiple effects run when dependencies change", () => {
+    const effectMock1 = vitest.fn();
+    const effectMock2 = vitest.fn();
+    const { result, rerender } = renderHook(({ propCount, anotherProp }) =>
+      useReactive(
+        {
+          count: propCount,
+          value: anotherProp,
+          count2: 33,
+        },
+        {
+          effects: [
+            [
+              function () {
+                effectMock1(this.count);
+              },
+              () => [propCount],
+            ],
+            [
+              function () {
+                effectMock2(this.value);
+              },
+              () => [anotherProp],
+            ],
+            [
+              function () {
+                effectMock1(this.count2);
+              },
+              function () {
+                return [this.count2]
+              },
+            ],
+          ]
+        }
+      ),
+      { initialProps: { propCount: 0, anotherProp: "a" } }
     );
-  });
+    expect(effectMock1).toHaveBeenCalledWith(0);
+    expect(effectMock2).toHaveBeenCalledWith("a");
 
-  it("should support multiple state properties", () => {
-    const [Provider, useStore] = createReactiveStore({ counter: 0, user: { name: "John" } });
+    rerender({ propCount: 1, anotherProp: "b" });
 
-    const { result } = renderHook(() => useStore(), {
-      wrapper: ({ children }) => <Provider>{children}</Provider>,
-    });
-
-    expect(result.current.state.counter).toBe(0);
-    expect(result.current.state.user.name).toBe("John");
+    expect(effectMock1).toHaveBeenCalledWith(1);
+    expect(effectMock2).toHaveBeenCalledWith("b");
 
     act(() => {
-      result.current.state.counter += 5;
-      result.current.state.user.name = "Doe";
+      result.current[0].count2++;
     });
 
-    expect(result.current.state.counter).toBe(5);
-    expect(result.current.state.user.name).toBe("Doe");
+    rerender({ propCount: 1, anotherProp: "b" });
+
+    expect(effectMock1).toHaveBeenCalledWith(34);
+
   });
+});
 
-  it("should trigger re-renders when state updates", () => {
-    const [Provider, useStore] = createReactiveStore({ count: 0 });
-
-    const { result, rerender } = renderHook(() => useStore(), {
-      wrapper: ({ children }) => <Provider>{children}</Provider>,
-    });
-
-    act(() => {
-      result.current.state.count++;
-    });
-
-    rerender();
-
-    expect(result.current.state.count).toBe(1);
-  });
-  it("should trigger a callback when a given property updates", () => {
+describe("Subscribe", () => {
+  test("should trigger a callback when a given property updates", () => {
     const effectMock = vi.fn();
     const { result } = renderHook(() => useReactive({ count: 0 }));
     act(() => {
@@ -353,7 +279,7 @@ describe("createReactiveStore", () => {
     expect(result.current[0].count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-  it("should trigger a callback when a given object property updates", () => {
+  test("should trigger a callback when a given object property updates", () => {
     const effectMock = vi.fn();
     const { result } = renderHook(() => useReactive({ obj: { count: 0 } }));
     act(() => {
@@ -363,7 +289,7 @@ describe("createReactiveStore", () => {
     expect(result.current[0].obj.count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-  it("should trigger a callback when a given nested object property updates", () => {
+  test("should trigger a callback when a given nested object property updates", () => {
     const effectMock = vi.fn();
     const { result } = renderHook(() => useReactive({ obj: { count: 0 } }));
     act(() => {
@@ -373,9 +299,9 @@ describe("createReactiveStore", () => {
     expect(result.current[0].obj.count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-  it("should NOT trigger a callback when a given nested object property updates without deep recursive flag", () => {
+  test("should NOT trigger a callback when a given nested object property updates without deep recursive flag", () => {
     const effectMock = vi.fn();
-    const { result } = renderHook(() => useReactive({ obj: { obj2: { count: 0 }} }));
+    const { result } = renderHook(() => useReactive({ obj: { obj2: { count: 0 } } }));
     act(() => {
       result.current[1](() => [result.current[0].obj], () => effectMock(1), true);
       result.current[0].obj.obj2.count++;
@@ -383,9 +309,9 @@ describe("createReactiveStore", () => {
     expect(result.current[0].obj.obj2.count).toBe(1);
     expect(effectMock).not.toHaveBeenCalledWith(1);
   });
-  it("should trigger a callback when a given nested object property updates with deep recursive flag", () => {
+  test("should trigger a callback when a given nested object property updates with deep recursive flag", () => {
     const effectMock = vi.fn();
-    const { result } = renderHook(() => useReactive({ obj: { obj2: { count: 0 }} }));
+    const { result } = renderHook(() => useReactive({ obj: { obj2: { count: 0 } } }));
     act(() => {
       result.current[1](() => [result.current[0].obj], () => effectMock(1), 'deep');
       result.current[0].obj.obj2.count++;
@@ -393,9 +319,9 @@ describe("createReactiveStore", () => {
     expect(result.current[0].obj.obj2.count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-  it("should trigger a callback when a given very deeply nested object property updates", () => {
+  test("should trigger a callback when a given very deeply nested object property updates", () => {
     const effectMock = vi.fn();
-    const { result } = renderHook(() => useReactive({ obj: { obj2: { obj3: { count: 0 }}}}));
+    const { result } = renderHook(() => useReactive({ obj: { obj2: { obj3: { count: 0 } } } }));
     act(() => {
       result.current[1](() => [result.current[0].obj], () => effectMock(1), 'deep');
       result.current[0].obj.obj2.obj3.count++;
@@ -403,7 +329,7 @@ describe("createReactiveStore", () => {
     expect(result.current[0].obj.obj2.obj3.count).toBe(1);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-  it("should trigger a callback when a given array property updates", () => {
+  test("should trigger a callback when a given array property updates", () => {
     const effectMock = vi.fn();
     const { result } = renderHook(() => useReactive({ arr: [1, 2, 3] }));
     act(() => {
@@ -413,7 +339,7 @@ describe("createReactiveStore", () => {
     expect(result.current[0].arr).toEqual([1, 2, 3, 4]);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-  it("should trigger a callback from init function when a given property updates", () => {
+  test("should trigger a callback from init function when a given property updates", () => {
     const effectMock = vi.fn();
     let unsubscribe: () => void;
     const { result } = renderHook(() => useReactive(
@@ -439,37 +365,37 @@ describe("createReactiveStore", () => {
     expect(result.current[0].count).toBe(2);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
-});
 
-it("should trigger a callback when any property of a given object property updates", () => {
-  const effectMock1 = vi.fn();
-  const effectMock2 = vi.fn();
-  const { result } = renderHook(() => useReactive({ sub: { count1: 0, count2: 10 } }));
-  act(() => {
-    result.current[1](() => [result.current[0].sub], (state, key, value, previous) => {
-      if (key === 'count1')
-        effectMock1(key, value, previous);
-      if (key === 'count2')
-        effectMock2(key, value, previous);
-    }, true)
-    result.current[0].sub.count1++;
-    result.current[0].sub.count2++;
+  test("should trigger a callback when any property of a given object property updates", () => {
+    const effectMock1 = vi.fn();
+    const effectMock2 = vi.fn();
+    const { result } = renderHook(() => useReactive({ sub: { count1: 0, count2: 10 } }));
+    act(() => {
+      result.current[1](() => [result.current[0].sub], (state, key, value, previous) => {
+        if (key === 'count1')
+          effectMock1(key, value, previous);
+        if (key === 'count2')
+          effectMock2(key, value, previous);
+      }, true)
+      result.current[0].sub.count1++;
+      result.current[0].sub.count2++;
+    });
+    expect(result.current[0].sub.count1).toBe(1);
+    expect(result.current[0].sub.count2).toBe(11);
+    expect(effectMock1).toHaveBeenCalledWith('count1', 1, 0);
+    expect(effectMock2).toHaveBeenCalledWith('count2', 11, 10);
   });
-  expect(result.current[0].sub.count1).toBe(1);
-  expect(result.current[0].sub.count2).toBe(11);
-  expect(effectMock1).toHaveBeenCalledWith('count1', 1, 0);
-  expect(effectMock2).toHaveBeenCalledWith('count2', 11, 10);
 });
 
-describe("useReactive - History Functionality", () => {
-  it("should initialize state correctly", () => {
+describe("History", () => {
+  test("should initialize state correctly", () => {
     const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }));
 
     expect(result.current[0].count).toBe(0);
     expect(result.current[0].message).toBe("Hello");
   });
 
-  it("should update state and track changes when history is enabled", () => {
+  test("should update state and track changes when history is enabled", () => {
     const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
 
     act(() => {
@@ -480,7 +406,7 @@ describe("useReactive - History Functionality", () => {
     expect(result.current[2].entries.length).toBe(1);
   });
 
-  it("should not track changes when history is disabled", () => {
+  test("should not track changes when history is disabled", () => {
     const { result } = renderHook(() => useReactive({ count: 0 }));
 
     act(() => {
@@ -491,7 +417,7 @@ describe("useReactive - History Functionality", () => {
     expect(result.current[2].entries.length).toBe(0);
   });
 
-  it("should undo the last change", () => {
+  test("should undo the last change", () => {
     const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
 
     act(() => {
@@ -503,7 +429,7 @@ describe("useReactive - History Functionality", () => {
     expect(result.current[2].entries.length).toBe(0);
   });
 
-  it("should revert a specific change", () => {
+  test("should revert a specific change", () => {
     const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
 
     act(() => {
@@ -516,7 +442,7 @@ describe("useReactive - History Functionality", () => {
     expect(result.current[2].entries.length).toBe(1);
   });
 
-  it("should undo to a specific index", () => {
+  test("should undo to a specific index", () => {
     const { result } = renderHook(() => useReactive({ count: 0, message: "Hello" }, { historySettings: { enabled: true } }));
 
     act(() => {
@@ -530,7 +456,7 @@ describe("useReactive - History Functionality", () => {
     expect(result.current[2].entries.length).toBe(0);
   });
 
-  it("should restore to a specific snapshot", () => {
+  test("should restore to a specific snapshot", () => {
     const { result } = renderHook(() => useReactive({ count: 0 }, { historySettings: { enabled: true } }));
     let savedPoint;
 

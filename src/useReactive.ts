@@ -80,14 +80,14 @@ function isEqual(x: any, y: any): boolean {
  * - Supports nested objects, while avoiding functions and getters.
  * - Uses a WeakMap for tracking object property maps.
  *
- * @param stateMapRef - A WeakMap that associates objects with their corresponding property maps.
  * @param obj - The target object whose properties are being tracked.
+ * @param stateMapRef - A WeakMap that associates objects with their corresponding property maps.
  * @param stateMap - A Map storing metadata about properties, including modification status and last known value.
  * @param newObj - An optional new object to compare against and apply updates from.
  */
 const syncState = <T extends object>(
-    stateMapRef: WeakMap<object, PropertyMap>,
     obj: T,
+    stateMapRef: WeakMap<object, PropertyMap>,
     stateMap: PropertyMap,
     newObj?: T
 ): void => {
@@ -141,7 +141,7 @@ const syncState = <T extends object>(
             stateMapRef.set(value as T, childStateMap);
 
             // Recursively sync nested properties
-            syncState(stateMapRef, value as T, childStateMap, newObj ? (newObj[key] as T) : undefined);
+            syncState(value as T, stateMapRef, childStateMap, newObj ? (newObj[key] as T) : undefined);
         }
     }
 };
@@ -153,19 +153,19 @@ const syncState = <T extends object>(
  * when properties change. It also supports computed properties (getters),
  * hot module reloading (HMR) synchronization, and optional side effects.
  * 
- * @param reactiveState - The initial state object.
+ * @param inputState - The initial state object.
  * @param effect - Optional effect function that runs when dependencies change.
  * @param deps - Dependencies array for triggering reactivity updates.
  * @returns A reactive proxy of the state object.
  */
 export function useReactive<T extends object>(
-    reactiveState: T,
+    inputState: T,
     options?: RO<T>
 ): [T, S<T>, H<T>] {
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
     }
-    const reactiveStateRef = useRef(reactiveState);
+    const reactiveStateRef = useRef(inputState);
     const [, setTriggerF] = useState(0); // State updater to trigger re-renders
     const setTrigger = (foo: (prev: number) => number) => { 
         if (!options?.noUseState) {
@@ -190,8 +190,8 @@ export function useReactive<T extends object>(
         stateMap = new Map();
         stateMapRef.current.set(reactiveStateRef.current, stateMap);
     }
-    // Sync the state with the initial object
-    syncState(stateMapRef.current, reactiveStateRef.current, stateMap!, reactiveState);
+    // Sync the current state with the input object
+    syncState(reactiveStateRef.current, stateMapRef.current, stateMap!, inputState);
 
     // Subscribe to the state object and track changes
     function subscribe(targets: () => unknown | unknown[], callback: SC<T>, recursive?: boolean | 'deep', onRead?: boolean) {
