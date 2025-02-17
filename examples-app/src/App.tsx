@@ -5,6 +5,37 @@ import './App.css'
 import { useReactive } from "./symlink/useReactive.js";
 import { createReactiveStore } from './symlink/useReactiveStore.js'
 
+function delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const ManEx = () => {
+    const [state, _subscribe, _history] = useReactive(
+    { // Reactive state object with methods
+        count: 0,
+        increment() { 
+            this.count++; 
+        } 
+    },
+    { // Options
+        async init(_state, subscribe, history) { 
+            console.log('Only runs once!');
+            subscribe(() => [ this.count ], (_state, key, value, previous) => {
+                console.log(`${ key } changed from ${ previous } to ${ value }`);
+            })
+            history.enable(true);
+            this.count++;
+            await delay(3000);
+            history.undo();
+        }
+  });
+  
+  return <div>
+    <p>Count: { state.count }</p>
+    <button onClick={ state.increment }>Increment</button>
+  </div>
+}
+
 const Sum = ({ value }: { value: number }) => {
     const [someState, setSomeState] = useState(0)
     const [state] = useReactive({
@@ -46,7 +77,7 @@ function TestReactiveStore() {
 }
 
 function TopTestReactiveStore() {
-    const store = useReactiveStore1();
+    const [store] = useReactiveStore1();
     return (
         <div>
             _________________________________
@@ -54,48 +85,48 @@ function TopTestReactiveStore() {
             <StoreCounter1 />
             <StoreCounter2 />
             <StoreUserInfo />
-            <button onClick={() => store.state.counter1++}>Increment 1</button>
-            <button onClick={() => store.state.counter1--}>Decrement 1</button>
-            <button onClick={() => store.state.counter2++}>Increment 2</button>
-            <button onClick={() => store.state.counter2--}>Decrement 2</button>
-            <button onClick={() => store.state.user.age++}>Increase Age</button>
+            <button onClick={() => store.counter1++}>Increment 1</button>
+            <button onClick={() => store.counter1--}>Decrement 1</button>
+            <button onClick={() => store.counter2++}>Increment 2</button>
+            <button onClick={() => store.counter2--}>Decrement 2</button>
+            <button onClick={() => store.user.age++}>Increase Age</button>
         </div>
     );
 }
 
 export const StoreCounter1 = memo(() => {
-    const store = useReactiveStore1();
+    const [store] = useReactiveStore1();
 
     return (
         <div>
-            <h4>Counter 1: {store.state.counter1}</h4>
-            <button onClick={() => store.state.counter1++}>Increment</button>
-            <button onClick={() => store.state.counter1--}>Decrement</button>
+            <h4>Counter 1: {store.counter1}</h4>
+            <button onClick={() => store.counter1++}>Increment</button>
+            <button onClick={() => store.counter1--}>Decrement</button>
             Rnd {Math.random()}
         </div>
     );
 });
 
 export const StoreCounter2 = memo(() => {
-    const store = useReactiveStore1();
+    const [store] = useReactiveStore1();
 
     return (
         <div>
-            <h4>Counter 2: {store.state.counter2}</h4>
-            <button onClick={() => store.state.counter2++}>Increment</button>
-            <button onClick={() => store.state.counter2--}>Decrement</button>
+            <h4>Counter 2: {store.counter2}</h4>
+            <button onClick={() => store.counter2++}>Increment</button>
+            <button onClick={() => store.counter2--}>Decrement</button>
             Rnd {Math.random()}
         </div>
     );
 });
 
 export const StoreUserInfo = memo(() => {
-    const store = useReactiveStore1();
+    const [store] = useReactiveStore1();
 
     return (
         <div>
-            <h4>User: {store.state.user.name}, Age: {store.state.user.age}</h4>
-            <button onClick={() => store.state.user.age++}>Increase Age</button>
+            <h4>User: {store.user.name}, Age: {store.user.age}</h4>
+            <button onClick={() => store.user.age++}>Increase Age</button>
             Rnd {Math.random()}
         </div>
     );
@@ -171,6 +202,7 @@ function App() {
         <>
             <div>
                 <h2>App examples</h2>
+                <ManEx />
                 <TestSum />
                 <TestReactiveStore />
                 <p>_________________________________</p>

@@ -211,28 +211,28 @@ const [ReactiveStoreProvider, useReactiveStore] = createReactiveStore({
 }, { init(_state, _subscribe, history) { history.enable(true) }  });
 
 function ReactiveStoreUser() {
-    const store = useReactiveStore();
+    const [store, _subscribe, history] = useReactiveStore();
     return (
         <div>
             _________________________________
             <h3>Reactive store user</h3>
-            <p>Name: {store.state.user.name}, Age: {store.state.user.age}</p>
-            <button onClick={() => store.state.user.name = "Jane Doe"}>Change name</button>
-            <button onClick={() => store.state.user.age++}>Increment age</button>
-            <button onClick={() => store.history.undo()}>Undo</button>
+            <p>Name: {store.user.name}, Age: {store.user.age}</p>
+            <button onClick={() => store.user.name = "Jane Doe"}>Change name</button>
+            <button onClick={() => store.user.age++}>Increment age</button>
+            <button onClick={() => history.undo()}>Undo</button>
         </div>
     );
 }
 
 function AnotherReactiveStoreUser() {
-    const store = useReactiveStore();
+    const [store, _subscribe, history] = useReactiveStore();
     return (
         <div>
             <h3>Another Reactive store user</h3>
-            <p>Name: {store.state.user.name}, Age: {store.state.user.age}</p>
-            <button onClick={() => store.state.user.name = "Jane Doe"}>Change name</button>
-            <button onClick={() => store.state.user.age++}>Increment age</button>
-            <button onClick={() => store.history.redo()}>Redo</button>
+            <p>Name: {store.user.name}, Age: {store.user.age}</p>
+            <button onClick={() => store.user.name = "Jane Doe"}>Change name</button>
+            <button onClick={() => store.user.age++}>Increment age</button>
+            <button onClick={() => history.redo()}>Redo</button>
         </div>
     );
 }

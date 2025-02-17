@@ -25,13 +25,13 @@ describe("General", () => {
       wrapper: ({ children }) => <Provider>{children}</Provider>,
     });
 
-    expect(result.current.state.counter).toBe(0);
+    expect(result.current[0].counter).toBe(0);
 
     act(() => {
-      result.current.state.counter++;
+      result.current[0].counter++;
     });
 
-    expect(result.current.state.counter).toBe(1);
+    expect(result.current[0].counter).toBe(1);
   });
 
   test("should throw an error when used outside of provider", () => {
@@ -49,16 +49,16 @@ describe("General", () => {
       wrapper: ({ children }) => <Provider>{children}</Provider>,
     });
 
-    expect(result.current.state.counter).toBe(0);
-    expect(result.current.state.user.name).toBe("John");
+    expect(result.current[0].counter).toBe(0);
+    expect(result.current[0].user.name).toBe("John");
 
     act(() => {
-      result.current.state.counter += 5;
-      result.current.state.user.name = "Doe";
+      result.current[0].counter += 5;
+      result.current[0].user.name = "Doe";
     });
 
-    expect(result.current.state.counter).toBe(5);
-    expect(result.current.state.user.name).toBe("Doe");
+    expect(result.current[0].counter).toBe(5);
+    expect(result.current[0].user.name).toBe("Doe");
   });
 
   test("should trigger re-renders when state updates", () => {
@@ -69,11 +69,11 @@ describe("General", () => {
     });
 
     act(() => {
-      result.current.state.count++;
+      result.current[0].count++;
     });
 
     rerender();
 
-    expect(result.current.state.count).toBe(1);
+    expect(result.current[0].count).toBe(1);
   });
 });

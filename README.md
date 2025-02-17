@@ -16,29 +16,52 @@ State modifications can be saved to a history with support for `undo`, `redo`, `
 
 A companion React context is available for sharing reactive state effectively across a component hierarchy—see [createReactiveStore](#createReactiveStore) below. 
 
-Basic usage inside a React component::
+Minimal example:
 
 ```tsx
 const [state] = useReactive(
-  { // Reactive state object with methods
-      count: 0,
-      increment() { 
-          this.count++; 
-      } 
-  },
-  { // Options
-      init() { console.log('Only runs once!') }
-});
+{
+    count: 0,
+    increment() { 
+        this.count++; 
+    } 
+}
+...
+<p>Count: { state.count }</p>
+<button onClick={ state.increment }>Increment</button>
+```
 
-return <div>
-  <p>Count: { state.count }</p>
-  <button onClick={ state.increment }>Increment</button>
-</div>
+Basic usage in a React component using subscribe and history:
+
+```tsx
+const MyComponent = () => {
+    const [state, subscribe, history] = useReactive(
+    { // Reactive state object with methods
+        count: 0,
+        increment() { 
+            this.count++; 
+        } 
+    },
+    { // Options
+        async init(state, subscribe, history) { 
+            // init method only runs once
+            subscribe(() => [ this.count ], (state, key, value, previous) => {
+                console.log(`${ key } changed from ${ previous } to ${ value }`);
+            })
+            history.enable(true); // Enable history
+            this.count++;
+            await delay(5000);
+            history.undo(); // Undo the latest change to the state object
+        }
+  });
+  return <div>
+    <p>Count: { state.count }</p>
+    <button onClick={ state.increment }>Increment</button>
+  </div>
+}
 ```
 
 Note: The function `increment` above can be declared without the `function` keyword when using object shorthand syntax.
-
-
 
 ## Features
 
@@ -469,7 +492,7 @@ The `createReactiveStore` function provides a shared reactive state using a Reac
 
 Initialize the global store like this:
 
-```
+```tsx
 import { createReactiveStore } from "@diginet/useReactive";
 
 const [ ReactiveStoreProvider, useReactiveStore ] = createReactiveStore({
@@ -484,7 +507,7 @@ const [ ReactiveStoreProvider, useReactiveStore ] = createReactiveStore({
 
 Wrap your components with your`ReactiveStoreProvider` to enable global state access:
 
-```
+```tsx
 function App() {
     return (
         <ReactiveStoreProvider>
@@ -502,24 +525,24 @@ function App() {
 
 #### Use the global store in components
 
-```
+```tsx
 const Counter = () => {
-    const store = useReactiveStore();
+    const [store, subscribe, history] = useReactiveStore();
     return (
         <div>
-            <h4>Counter: {store.state.counter}</h4>
-            <button onClick={() => store.state.counter++}>Increment</button>
-            <button onClick={() => store.state.counter--}>Decrement</button>
+            <h4>Counter: {store.counter}</h4>
+            <button onClick={() => store.counter++}>Increment</button>
+            <button onClick={() => store.counter--}>Decrement</button>
         </div>
     );
 };
 
 const UserInfo = () => {
-    const store = useReactiveStore();
+    const [store, subscribe, history] = useReactiveStore();
     return (
         <div>
-            <h4>User: {store.state.user.name}, Age: {store.state.user.age}</h4>
-            <button onClick={() => store.state.user.age++}>Increase Age</button>
+            <h4>User: {store.user.name}, Age: {store.user.age}</h4>
+            <button onClick={() => store.user.age++}>Increase Age</button>
         </div>
     );
 };
@@ -537,7 +560,13 @@ const UserInfo = () => {
 
 This makes `createReactiveStore` a tool for managing shared reactive state in React applications.
 
+### **useReactiveStore API**
 
+| Return tuple | Description                                              |
+| ------------ | -------------------------------------------------------- |
+| store        | The reactive state object that is the shared store.      |
+| subscribe    | A subscribe function, see [Subscribe](#subscribe) above. |
+| history      | The history interface, see [History](#history) above.    |
 
 ## Contributions
 

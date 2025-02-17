@@ -4,11 +4,11 @@ import { useReactive, S, H, RO } from "./useReactive"; // Assuming your existing
 /**
  * The context object for the reactive store.
  */
-interface ReactiveStoreContext<T> {
-    state: T;
-    subscribe: S<T>;
-    history: H<T>;
-}
+type ReactiveStoreContext<T> = [
+    state: T,
+    subscribe: S<T>,
+    history: H<T>
+];
 
 /**
  * Creates a globally shared reactive state using React Context and useReactive.
@@ -24,7 +24,7 @@ export function createReactiveStore<T extends object>(initialState: T, options?:
         const [state, subscribe, history] = useReactive(initialState, { ...options, noUseState: true });
         // Return the provider
         return (
-            <ReactiveStoreContext.Provider value={{ state, subscribe, history }}>
+            <ReactiveStoreContext.Provider value={[ state, subscribe, history ]}>
                 {children}
             </ReactiveStoreContext.Provider>
         );
@@ -42,7 +42,7 @@ export function createReactiveStore<T extends object>(initialState: T, options?:
         }
         const [, setTrigger] = React.useState(0);
         // Create a proxy to track the subscriptions
-        const proxyProxy = useReactive(context.state, { noUseState: true });
+        const proxyProxy = useReactive(context[0], { noUseState: true });
         // Track the subscriptions
         const subscriptionsRef = useRef<WeakMap<object, Map<string, boolean>> | null>(null);
         if (!subscriptionsRef.current) {
@@ -63,13 +63,13 @@ export function createReactiveStore<T extends object>(initialState: T, options?:
                 if (read && !map.has(key as string)) {
                     // Subscribe to the key
                     map.set(key as string, true);                    
-                    context.subscribe(() => state[key as keyof T], () => {
+                    context[1](() => state[key as keyof T], () => {
                         setTrigger((prev: any) => prev + 1);
                     });
                 }
             }, 'deep', true)
         }        
-        return { state: proxyProxy[0], subscribe: context.subscribe, history: context.history };
+        return [ proxyProxy[0], context[1], context[2] ] as const;
     }
     return [ReactiveStoreProvider, useReactiveStore] as const;
 }
