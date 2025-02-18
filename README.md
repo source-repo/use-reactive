@@ -6,15 +6,11 @@
 ```
 # useReactive
 
-`useReactive` is a custom React hook that provides a reactive state object. 
-
-Methods on the object use `this` to access members, enabling an object-oriented approach to encapsulating data and behavior.
-
-You can `subscribe` to property changes.
+`useReactive` is a custom React hook that provides a reactive state object using a Proxy. Methods on the object use `this` to access members, enabling an object-oriented approach to encapsulating data and behavior. You can `subscribe` to property changes.
 
 State modifications can be saved to a history with support for `undo`, `redo`, `revert` and `snapshot` / `restore`. 
 
-A companion React context is available for sharing reactive state effectively across a component hierarchy—see [createReactiveStore](#createReactiveStore) below. 
+A companion React context is available for sharing reactive state effectively across a component hierarchy—see [createReactiveStore](#createReactiveStore) below. The hook returned by this function uses another Proxy to make the store object properties used by a component reactive.
 
 Minimal example:
 
