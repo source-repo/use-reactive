@@ -602,12 +602,14 @@ describe("Allow Background Mutations", () => {
   test("should propagate mutations to components with allowBackgroundMutations", () => {
     const sharedState = { count: 0 };
     
-    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultA } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
     const { result: resultB, rerender: rerenderB } = renderHook(() => 
       useReactive(sharedState, { allowBackgroundMutations: true })
     );
 
-    // Component A mutates
+    // Component A mutates (has allowBackgroundMutations)
     act(() => {
       resultA.current[0].count++;
     });
@@ -773,20 +775,23 @@ describe("Allow Background Mutations", () => {
     const { result: resultB, rerender: rerenderB } = renderHook(() => 
       useReactive(sharedState, { allowBackgroundMutations: true })
     );
+    const { result: resultC } = renderHook(() => useReactive(sharedState));
 
     // Component A mutates (but doesn't have allowBackgroundMutations)
-    // This creates a copy for Component A
+    // Component B has allowBackgroundMutations, so Component A mutates the source
+    // Component C doesn't have allowBackgroundMutations, so Component C gets a copy
     act(() => {
       resultA.current[0].count++;
     });
     
     rerenderB();
 
-    // Component A should see its own mutation
+    // Component A should see the mutation (mutated the source)
     expect(resultA.current[0].count).toBe(1);
-    // Component B should NOT see Component A's mutation
-    // (Component A got a copy, so Component B keeps the original)
-    expect(resultB.current[0].count).toBe(0);
+    // Component B should see the mutation (has allowBackgroundMutations, sees source mutations)
+    expect(resultB.current[0].count).toBe(1);
+    // Component C should NOT see the mutation (got a copy, keeps the original)
+    expect(resultC.current[0].count).toBe(0);
   });
 
   test("should handle background mutations with nested object replacement", () => {

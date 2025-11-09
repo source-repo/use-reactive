@@ -521,14 +521,178 @@ export function useReactive<T extends object>(
                                 // If accessing a possibly mutating array method, return a wrapped function
                                 if (typeof arrValue === "function") {
                                     return (...args: any[]) => {
-                                        const result = arrValue.apply(arrTarget, args);
-                                        if (!isEqual(prevValue, arrTarget)) {
-                                            const stateMap = stateMapRef.current?.get(actualObj);
-                                            if (!stateMap?.has(key as keyof T)) return false;
-                                            const [, map, propValue] = stateMap.get(key as keyof T)!;
-                                            if (!isEqual(prevValue, arrTarget)) {
-                                                stateMap.set(key as keyof T, [true, map, propValue]);
-                                                actualObj[key as keyof T] = arrTarget as any;
+                                        // Check if this array is nested and needs copy-on-write
+                                        const arrayParentInfo = (arrTarget as any)[PARENT_INFO];
+                                        const isNestedArray = arrayParentInfo !== undefined;
+                                        let arrayToMutate = arrTarget;
+                                        let actualParentCopy: T & ReactiveObjectVersion | null = null; // For nested arrays
+                                        
+                                        // For root-level arrays, check if Component A needs a copy
+                                        if (!isNestedArray && !(arrTarget as any)[IS_COPY] && actualObj[PROXY_VERSIONS] && actualObj[PROXY_VERSIONS]!.size > 1) {
+                                            const rootProxyVersions = actualObj[PROXY_VERSIONS]!;
+                                            // Check if any proxy needs a copy (doesn't have allowBackgroundMutations)
+                                            let hasBackgroundUsers = false;
+                                            for (const [userProxy, item] of rootProxyVersions) {
+                                                if (item.allowBackgroundMutations) {
+                                                    hasBackgroundUsers = true;
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            // If no background users, any proxy that doesn't have a copy needs one
+                                            // Since we can't identify which proxy is calling, create a copy for the first one that needs it
+                                            if (!hasBackgroundUsers) {
+                                                for (const [userProxy, item] of rootProxyVersions) {
+                                                    if (!item.state && !item.allowBackgroundMutations) {
+                                                        // This proxy needs a copy - create it now
+                                                        const rootCopy = shallowCopy(actualObj, actualObj);
+                                                        item.state = rootCopy;
+                                                        
+                                                        // Set up state map for the root copy
+                                                        const rootCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                                                        stateMapRef.current.set(rootCopy, rootCopyStateMap);
+                                                        syncState(rootCopy, stateMapRef.current, rootCopyStateMap);
+                                                        
+                                                        // Create a copy of the array in the root copy
+                                                        const arrayCopy = [...arrTarget] as any;
+                                                        arrayCopy[IS_COPY] = true;
+                                                        arrayCopy[PARENT_INFO] = { parent: rootCopy, key };
+                                                        rootCopy[key as keyof T] = arrayCopy as any;
+                                                        
+                                                        // Set up state map for the array copy
+                                                        const arrayCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                                                        stateMapRef.current.set(arrayCopy, arrayCopyStateMap);
+                                                        
+                                                        // Update root copy's state map
+                                                        rootCopyStateMap.set(key, [true, undefined, arrayCopy]);
+                                                        
+                                                        arrayToMutate = arrayCopy;
+                                                        actualObj = rootCopy;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        if (isNestedArray && !(arrTarget as any)[IS_COPY]) {
+                                            const arrayParent = arrayParentInfo.parent as T & ReactiveObjectVersion;
+                                            // Check if parent is a copy
+                                            let parentIsCopy = arrayParent[IS_COPY] === true;
+                                            
+                                            if (parentIsCopy) {
+                                                actualParentCopy = arrayParent;
+                                            } else if (arrayParent[PROXY_VERSIONS]) {
+                                                // Check if any proxy has a copy of the parent
+                                                // If the parent in PARENT_INFO is the source, check all proxy entries
+                                                const parentProxyVersions = arrayParent[PROXY_VERSIONS];
+                                                // Check all proxy entries to see if any have a copy of the parent
+                                                // If any proxy has a copy, we need to ensure the array is copied
+                                                // (the array might still be shared or already copied by the get handler)
+                                                for (const [userProxy, item] of parentProxyVersions) {
+                                                    if (item.state && (item.state as T & ReactiveObjectVersion)[IS_COPY] === true) {
+                                                        const parentCopy = item.state as T & ReactiveObjectVersion;
+                                                        const arrayInCopy = parentCopy[arrayParentInfo.key as keyof T];
+                                                        // If the array in the copy is the same as arrTarget (still shared), we need to copy it
+                                                        if (arrayInCopy === arrTarget) {
+                                                            parentIsCopy = true;
+                                                            actualParentCopy = parentCopy;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                // If we still don't have a copy, check if any proxy needs one
+                                                // (similar to nested object logic)
+                                                if (!parentIsCopy && !arrayParent[IS_COPY] && parentProxyVersions.size > 1) {
+                                                    // Check if there are any users with allowBackgroundMutations
+                                                    let hasBackgroundUsers = false;
+                                                    for (const [userProxy, item] of parentProxyVersions) {
+                                                        if (item.allowBackgroundMutations) {
+                                                            hasBackgroundUsers = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    
+                                                    // If no background users, any proxy that doesn't have a copy needs one
+                                                    // We'll create a copy for the first proxy that needs it
+                                                    if (!hasBackgroundUsers) {
+                                                        for (const [userProxy, item] of parentProxyVersions) {
+                                                            if (!item.state && !item.allowBackgroundMutations) {
+                                                                // This proxy needs a copy - create it now
+                                                                const parentCopy = shallowCopy(arrayParent, arrayParent);
+                                                                item.state = parentCopy;
+                                                                
+                                                                // Set up state map for the parent copy
+                                                                const parentCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                                                                stateMapRef.current.set(parentCopy, parentCopyStateMap);
+                                                                syncState(parentCopy, stateMapRef.current, parentCopyStateMap);
+                                                                
+                                                                parentIsCopy = true;
+                                                                actualParentCopy = parentCopy;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            
+                                            if (parentIsCopy && actualParentCopy) {
+                                                // Parent is a copy - check if the array in the copy is already different
+                                                const arrayInCopy = actualParentCopy[arrayParentInfo.key as keyof T];
+                                                if (arrayInCopy === arrTarget) {
+                                                    // Array is still shared - create a copy
+                                                    const arrayCopy = [...arrTarget] as any;
+                                                    arrayCopy[IS_COPY] = true;
+                                                    arrayCopy[PARENT_INFO] = { parent: actualParentCopy, key: arrayParentInfo.key };
+                                                    
+                                                    // Replace the reference in the parent copy
+                                                    actualParentCopy[arrayParentInfo.key as keyof T] = arrayCopy as any;
+                                                    
+                                                    // Set up state map for the array copy
+                                                    const arrayCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                                                    stateMapRef.current.set(arrayCopy, arrayCopyStateMap);
+                                                    
+                                                    // Update parent's state map
+                                                    const parentStateMap = stateMapRef.current.get(actualParentCopy);
+                                                    if (parentStateMap) {
+                                                        parentStateMap.set(arrayParentInfo.key, [true, undefined, arrayCopy]);
+                                                    }
+                                                    
+                                                    arrayToMutate = arrayCopy;
+                                                } else {
+                                                    // Array is already copied - use the copy
+                                                    arrayToMutate = arrayInCopy as any;
+                                                }
+                                            }
+                                        }
+                                        
+                                        const result = arrValue.apply(arrayToMutate, args);
+                                        if (!isEqual(prevValue, arrayToMutate)) {
+                                            // Determine which object to update:
+                                            // - For nested arrays: use actualParentCopy
+                                            // - For root-level arrays: if arrayToMutate has PARENT_INFO, use its parent; otherwise use actualObj
+                                            let objToUpdate: T & ReactiveObjectVersion;
+                                            let keyToUpdate: string | number | symbol;
+                                            
+                                            if (isNestedArray && actualParentCopy && arrayParentInfo) {
+                                                objToUpdate = actualParentCopy;
+                                                keyToUpdate = arrayParentInfo.key;
+                                            } else if (arrayToMutate !== arrTarget && (arrayToMutate as any)[PARENT_INFO]) {
+                                                // We created a copy - use its parent
+                                                objToUpdate = (arrayToMutate as any)[PARENT_INFO].parent;
+                                                keyToUpdate = (arrayToMutate as any)[PARENT_INFO].key;
+                                            } else {
+                                                // Use actualObj (source or existing copy)
+                                                objToUpdate = actualObj;
+                                                keyToUpdate = key;
+                                            }
+                                            
+                                            const stateMap = stateMapRef.current?.get(objToUpdate);
+                                            if (!stateMap?.has(keyToUpdate as keyof T)) return false;
+                                            const [, map, propValue] = stateMap.get(keyToUpdate as keyof T)!;
+                                            if (!isEqual(prevValue, arrayToMutate)) {
+                                                stateMap.set(keyToUpdate as keyof T, [true, map, propValue]);
+                                                objToUpdate[keyToUpdate as keyof T] = arrayToMutate as any;
                                                 setTrigger((prev) => prev + 1);
                                             }
                                         }
@@ -572,10 +736,12 @@ export function useReactive<T extends object>(
                             (nestedCopy as any)[PARENT_INFO] = { parent: actualObj, key };
                             
                             value = nestedCopy;
-                        } else {
-                            // Track parent-child relationship for shared nested objects
+                        } else if (!isNestedInCopy) {
+                            // We're accessing from the source - track parent-child relationship for shared nested objects
                             // Store on object itself so it's accessible across hook instances
-                            if (!(value as any)[PARENT_INFO]) {
+                            // But only if this nested object doesn't already have a different parent
+                            const existingParentInfo = (value as any)[PARENT_INFO];
+                            if (!existingParentInfo || existingParentInfo.parent === actualObj) {
                                 (value as any)[PARENT_INFO] = { parent: actualObj, key };
                             }
                         }
@@ -621,28 +787,93 @@ export function useReactive<T extends object>(
                     // this nested object is also copied before mutating
                     if (isNestedObject && !(obj as any)[IS_COPY]) {
                         const parent = parentInfo.parent as T & ReactiveObjectVersion;
-                        // Check if parent is a copy (either directly or through a proxy entry)
+                        // Check if parent is a copy - if IS_COPY is true, it's definitely a copy
                         let parentIsCopy = parent[IS_COPY] === true;
+                        let actualParentCopy: T & ReactiveObjectVersion | null = null;
                         
-                        // Also check if the parent has a PROXY_VERSIONS entry that indicates it's a copy
-                        const parentProxyVersions = parent[PROXY_VERSIONS];
-                        if (parentProxyVersions) {
-                            // Check if any proxy entry has a state (copy)
-                            for (const [, item] of parentProxyVersions) {
-                                if (item.state === parent) {
+                        // Check if the receiver (the proxy that's mutating) has a copy of the parent
+                        // by checking if the parent has PROXY_VERSIONS and if the receiver's proxy entry has a state
+                        // Note: receiver might be the nested object's proxy, not the root proxy
+                        // So we need to check all proxy entries to see if any have a copy
+                        if (parent[PROXY_VERSIONS]) {
+                            const parentProxyVersions = parent[PROXY_VERSIONS];
+                            
+                            // First, check if receiver directly has a copy
+                            let receiverEntry = parentProxyVersions.get(receiver);
+                            if (receiverEntry?.state) {
+                                const receiverParentCopy = receiverEntry.state as T & ReactiveObjectVersion;
+                                if (receiverParentCopy[IS_COPY] === true) {
                                     parentIsCopy = true;
-                                    break;
+                                    actualParentCopy = receiverParentCopy;
+                                }
+                            }
+                            
+                            // If receiver doesn't have a copy, check all proxy entries to see if any have a copy
+                            // that contains this nested object
+                            if (!parentIsCopy) {
+                                for (const [userProxy, item] of parentProxyVersions) {
+                                    if (item.state && (item.state as T & ReactiveObjectVersion)[IS_COPY] === true) {
+                                        const parentCopy = item.state as T & ReactiveObjectVersion;
+                                        const nestedInCopy = parentCopy[parentInfo.key as keyof T];
+                                        // If the nested object in the copy is the same as the one being mutated (still shared)
+                                        if (nestedInCopy === obj) {
+                                            parentIsCopy = true;
+                                            actualParentCopy = parentCopy;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // If we still don't have a copy, check if any proxy needs one
+                            // (receiver might be the nested object's proxy, not the root proxy)
+                            if (!parentIsCopy && !parent[IS_COPY] && parentProxyVersions.size > 1) {
+                                // Check if there are any users with allowBackgroundMutations
+                                let hasBackgroundUsers = false;
+                                for (const [userProxy, item] of parentProxyVersions) {
+                                    if (item.allowBackgroundMutations) {
+                                        hasBackgroundUsers = true;
+                                        break;
+                                    }
+                                }
+                                
+                                // If no background users, any proxy that doesn't have a copy needs one
+                                // We'll create a copy for the first proxy that needs it
+                                if (!hasBackgroundUsers) {
+                                    for (const [userProxy, item] of parentProxyVersions) {
+                                        if (!item.state && !item.allowBackgroundMutations) {
+                                            // This proxy needs a copy - create it now
+                                            const parentCopy = shallowCopy(parent, parent);
+                                            item.state = parentCopy;
+                                            
+                                            // Set up state map for the parent copy
+                                            const parentCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                                            stateMapRef.current.set(parentCopy, parentCopyStateMap);
+                                            syncState(parentCopy, stateMapRef.current, parentCopyStateMap);
+                                            
+                                            parentIsCopy = true;
+                                            actualParentCopy = parentCopy;
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
                         
-                        if (parentIsCopy) {
+                        // Also check if parent itself is a copy (PARENT_INFO might point directly to a copy)
+                        if (!parentIsCopy && parent[IS_COPY] === true) {
+                            parentIsCopy = true;
+                            actualParentCopy = parent;
+                        }
+                        
+                        // If we found that the parent is a copy, create a copy of the nested object
+                        if (parentIsCopy && actualParentCopy && !(obj as any)[IS_COPY]) {
                             // Parent is a copy - create a copy of this nested object
-                            const nestedCopy = shallowCopy(obj as any, parent);
-                            nestedCopy[PARENT_INFO] = parentInfo;
+                            const nestedCopy = shallowCopy(obj as any, actualParentCopy);
+                            nestedCopy[PARENT_INFO] = { parent: actualParentCopy, key: parentInfo.key };
                             
                             // Replace the reference in the parent copy
-                            parent[parentInfo.key as keyof T] = nestedCopy as any;
+                            actualParentCopy[parentInfo.key as keyof T] = nestedCopy as any;
                             
                             // Set up state map for the nested copy
                             const nestedCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
@@ -650,7 +881,7 @@ export function useReactive<T extends object>(
                             syncState(nestedCopy as T, stateMapRef.current, nestedCopyStateMap);
                             
                             // Update parent's state map
-                            const parentStateMap = stateMapRef.current.get(parent);
+                            const parentStateMap = stateMapRef.current.get(actualParentCopy);
                             if (parentStateMap) {
                                 parentStateMap.set(parentInfo.key, [true, nestedCopyStateMap, nestedCopy]);
                             }
@@ -685,10 +916,14 @@ export function useReactive<T extends object>(
                     const mutatorHasAllowBackgroundMutations = proxyEntry?.allowBackgroundMutations === true;
                     
                     // If mutating source and there are multiple users:
-                    // - If there are users with allowBackgroundMutations, mutate the source (no copy for mutator)
-                    //   so they can see the mutations. Create copies for users without allowBackgroundMutations.
-                    // - If no users have allowBackgroundMutations, create a copy for the mutator
-                    //   and copies for other users without allowBackgroundMutations
+                    // - If mutator has allowBackgroundMutations, mutate the source (no copy for mutator)
+                    //   so others with allowBackgroundMutations can see the mutations.
+                    //   Create copies for users without allowBackgroundMutations.
+                    // - If mutator doesn't have allowBackgroundMutations:
+                    //   - If there are users with allowBackgroundMutations, mutate the source (no copy for mutator)
+                    //     so they can see the mutations. Create copies for users without allowBackgroundMutations.
+                    //   - If no users have allowBackgroundMutations, create a copy for the mutator
+                    //     and copies for other users without allowBackgroundMutations
                     if (isSource && proxyVersions && proxyVersions.size > 1 && !proxyEntry?.state) {
                         // Create copies for users without allowBackgroundMutations (they should be isolated)
                         for (const [userProxy, item] of proxyVersions) {
@@ -705,8 +940,11 @@ export function useReactive<T extends object>(
                             }
                         }
                         
-                        // Create a copy for the mutator only if there are no background mutation users
-                        if (!hasBackgroundMutationUsers) {
+                        // Create a copy for the mutator only if:
+                        // 1. Mutator doesn't have allowBackgroundMutations AND
+                        // 2. No other users have allowBackgroundMutations
+                        // Otherwise, mutate the source so components with allowBackgroundMutations can see the mutations
+                        if (!mutatorHasAllowBackgroundMutations && !hasBackgroundMutationUsers) {
                             // No background mutation users - create a copy for the mutator
                             const copy = shallowCopy(obj, obj);
                             proxyEntry = proxyVersions.get(receiver);
@@ -722,7 +960,8 @@ export function useReactive<T extends object>(
                             }
                             actualObj = copy;
                         }
-                        // If hasBackgroundMutationUsers, mutate the source directly (actualObj stays as obj)
+                        // If mutator has allowBackgroundMutations OR there are background mutation users,
+                        // mutate the source directly (actualObj stays as obj)
                         // so that components with allowBackgroundMutations can see the mutations
                     } else if (proxyEntry?.state) {
                         // This proxy already has a copy - use it
@@ -936,3 +1175,4 @@ export function useReactive<T extends object>(
     // Return the reactive proxy object etc
     return [proxyRef.current, subscribe, history] as const;
 }
+
