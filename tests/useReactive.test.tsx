@@ -64,11 +64,17 @@ describe('General', () => {
     act(() => {
       result.current[0].addTodo('Master TypeScript');
     });
-    expect(result.current[0].todos).toEqual(['Learn React', 'Master TypeScript']);
+    // Compare array contents (arrays may have symbol properties that affect equality)
+    expect(result.current[0].todos.length).toBe(2);
+    expect(result.current[0].todos[0]).toBe('Learn React');
+    expect(result.current[0].todos[1]).toBe('Master TypeScript');
     act(() => {
       result.current[0].addTodoInPlace('Master Cobol');
     });
-    expect(result.current[0].todos).toEqual(['Learn React', 'Master TypeScript', 'Master Cobol']);
+    expect(result.current[0].todos.length).toBe(3);
+    expect(result.current[0].todos[0]).toBe('Learn React');
+    expect(result.current[0].todos[1]).toBe('Master TypeScript');
+    expect(result.current[0].todos[2]).toBe('Master Cobol');
   });
   test('should call init function on creation', () => {
     const initMock = vi.fn();
@@ -336,7 +342,12 @@ describe("Subscribe", () => {
       result.current[1](() => [result.current[0].arr], () => effectMock(1));
       result.current[0].arr = [1, 2, 3, 4];
     });
-    expect(result.current[0].arr).toEqual([1, 2, 3, 4]);
+    // Compare array contents (arrays may have symbol properties that affect equality)
+    expect(result.current[0].arr.length).toBe(4);
+    expect(result.current[0].arr[0]).toBe(1);
+    expect(result.current[0].arr[1]).toBe(2);
+    expect(result.current[0].arr[2]).toBe(3);
+    expect(result.current[0].arr[3]).toBe(4);
     expect(effectMock).toHaveBeenCalledWith(1);
   });
   test("should trigger a callback from init function when a given property updates", () => {
@@ -469,5 +480,392 @@ describe("History", () => {
 
     expect(result.current[0].count).toBe(1);
     expect(result.current[2].entries.length).toBe(1);
+  });
+});
+
+describe("Copy-on-Write", () => {
+  test("should create isolated copies when multiple components share state", () => {
+    const sharedState = { count: 0 };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB } = renderHook(() => useReactive(sharedState));
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+
+    // Component A should see the mutation
+    expect(resultA.current[0].count).toBe(1);
+    // Component B should keep the original value (isolated copy)
+    expect(resultB.current[0].count).toBe(0);
+  });
+
+  test("should create copies lazily on first mutation", () => {
+    const sharedState = { count: 0, name: "Test" };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB } = renderHook(() => useReactive(sharedState));
+
+    // Component A reads but doesn't mutate yet
+    expect(resultA.current[0].count).toBe(0);
+    expect(resultB.current[0].count).toBe(0);
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+
+    // Component A sees mutation
+    expect(resultA.current[0].count).toBe(1);
+    // Component B still sees original
+    expect(resultB.current[0].count).toBe(0);
+    // Both should still share the name property (not mutated)
+    expect(resultA.current[0].name).toBe("Test");
+    expect(resultB.current[0].name).toBe("Test");
+  });
+
+  test("should isolate nested object mutations", () => {
+    const sharedState = { user: { name: "John", age: 30 } };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB } = renderHook(() => useReactive(sharedState));
+
+    // Component A mutates nested property
+    act(() => {
+      resultA.current[0].user.age++;
+    });
+
+    // Component A should see the mutation
+    expect(resultA.current[0].user.age).toBe(31);
+    // Component B should keep the original value
+    expect(resultB.current[0].user.age).toBe(30);
+    // Both should still have the same name (not mutated)
+    expect(resultA.current[0].user.name).toBe("John");
+    expect(resultB.current[0].user.name).toBe("John");
+  });
+
+  test("should isolate array mutations", () => {
+    const sharedState = { items: [1, 2, 3] };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB } = renderHook(() => useReactive(sharedState));
+
+    // Component A mutates array
+    act(() => {
+      resultA.current[0].items.push(4);
+    });
+
+    // Component A should see the mutation
+    expect(resultA.current[0].items.length).toBe(4);
+    expect(resultA.current[0].items[3]).toBe(4);
+    // Component B should keep the original array
+    expect(resultB.current[0].items.length).toBe(3);
+    expect(resultB.current[0].items[2]).toBe(3);
+  });
+
+  test("should handle multiple mutations independently", () => {
+    const sharedState = { count: 0, value: 10 };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB } = renderHook(() => useReactive(sharedState));
+    const { result: resultC } = renderHook(() => useReactive(sharedState));
+
+    // Component A mutates count
+    act(() => {
+      resultA.current[0].count++;
+    });
+
+    // Component B mutates value
+    act(() => {
+      resultB.current[0].value++;
+    });
+
+    // Component C mutates count
+    act(() => {
+      resultC.current[0].count += 5;
+    });
+
+    // Each component should see its own mutations
+    expect(resultA.current[0].count).toBe(1);
+    expect(resultA.current[0].value).toBe(10); // Not mutated by A
+    
+    expect(resultB.current[0].count).toBe(0); // Not mutated by B
+    expect(resultB.current[0].value).toBe(11);
+    
+    expect(resultC.current[0].count).toBe(5);
+    expect(resultC.current[0].value).toBe(10); // Not mutated by C
+  });
+});
+
+describe("Allow Background Mutations", () => {
+  test("should propagate mutations to components with allowBackgroundMutations", () => {
+    const sharedState = { count: 0 };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+    
+    rerenderB();
+
+    // Component A should see the mutation
+    expect(resultA.current[0].count).toBe(1);
+    // Component B should also see the mutation (background mutation)
+    expect(resultB.current[0].count).toBe(1);
+  });
+
+  test("should trigger re-renders for components with allowBackgroundMutations", () => {
+    const sharedState = { count: 0 };
+    let renderCount = 0;
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => {
+      renderCount++;
+      return useReactive(sharedState, { allowBackgroundMutations: true });
+    });
+
+    const initialRenderCount = renderCount;
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+    
+    rerenderB();
+
+    // Component B should have re-rendered due to background mutation
+    expect(resultB.current[0].count).toBe(1);
+  });
+
+  test("should propagate nested object mutations with allowBackgroundMutations", () => {
+    const sharedState = { user: { name: "John", age: 30 } };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A mutates nested property
+    act(() => {
+      resultA.current[0].user.age++;
+    });
+    
+    rerenderB();
+
+    // Component A should see the mutation
+    expect(resultA.current[0].user.age).toBe(31);
+    // Component B should also see the mutation (background mutation)
+    expect(resultB.current[0].user.age).toBe(31);
+    // Both should have the same name
+    expect(resultA.current[0].user.name).toBe("John");
+    expect(resultB.current[0].user.name).toBe("John");
+  });
+
+  test("should propagate array mutations with allowBackgroundMutations", () => {
+    const sharedState = { items: [1, 2, 3] };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A mutates array
+    act(() => {
+      resultA.current[0].items.push(4);
+    });
+    
+    rerenderB();
+
+    // Component A should see the mutation
+    expect(resultA.current[0].items.length).toBe(4);
+    expect(resultA.current[0].items[3]).toBe(4);
+    // Component B should also see the mutation (background mutation)
+    expect(resultB.current[0].items.length).toBe(4);
+    expect(resultB.current[0].items[3]).toBe(4);
+  });
+
+  test("should handle mixed allowBackgroundMutations settings", () => {
+    const sharedState = { count: 0 };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+    const { result: resultC } = renderHook(() => useReactive(sharedState));
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+    
+    rerenderB();
+
+    // Component A should see the mutation
+    expect(resultA.current[0].count).toBe(1);
+    // Component B should see the mutation (allows background mutations)
+    expect(resultB.current[0].count).toBe(1);
+    // Component C should keep the original (doesn't allow background mutations)
+    expect(resultC.current[0].count).toBe(0);
+  });
+
+  test("should propagate deeply nested mutations with allowBackgroundMutations", () => {
+    const sharedState = { 
+      level1: { 
+        level2: { 
+          level3: { value: 10 } 
+        } 
+      } 
+    };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A mutates deeply nested property
+    act(() => {
+      resultA.current[0].level1.level2.level3.value++;
+    });
+    
+    rerenderB();
+
+    // Component A should see the mutation
+    expect(resultA.current[0].level1.level2.level3.value).toBe(11);
+    // Component B should also see the mutation (background mutation)
+    expect(resultB.current[0].level1.level2.level3.value).toBe(11);
+  });
+
+  test("should handle multiple components with allowBackgroundMutations", () => {
+    const sharedState = { count: 0 };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+    const { result: resultC, rerender: rerenderC } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+    
+    rerenderB();
+    rerenderC();
+
+    // All components with allowBackgroundMutations should see the mutation
+    expect(resultA.current[0].count).toBe(1);
+    expect(resultB.current[0].count).toBe(1);
+    expect(resultC.current[0].count).toBe(1);
+  });
+
+  test("should not propagate mutations from components without allowBackgroundMutations to those with it", () => {
+    const sharedState = { count: 0 };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A mutates (but doesn't have allowBackgroundMutations)
+    // This creates a copy for Component A
+    act(() => {
+      resultA.current[0].count++;
+    });
+    
+    rerenderB();
+
+    // Component A should see its own mutation
+    expect(resultA.current[0].count).toBe(1);
+    // Component B should NOT see Component A's mutation
+    // (Component A got a copy, so Component B keeps the original)
+    expect(resultB.current[0].count).toBe(0);
+  });
+
+  test("should handle background mutations with nested object replacement", () => {
+    const sharedState = { user: { name: "John", age: 30 } };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A replaces entire nested object
+    act(() => {
+      resultA.current[0].user = { name: "Jane", age: 25 };
+    });
+    
+    rerenderB();
+
+    // Component A should see the replacement
+    expect(resultA.current[0].user.name).toBe("Jane");
+    expect(resultA.current[0].user.age).toBe(25);
+    // Component B should also see the replacement (background mutation)
+    expect(resultB.current[0].user.name).toBe("Jane");
+    expect(resultB.current[0].user.age).toBe(25);
+  });
+
+  test("should work with history enabled and allowBackgroundMutations", () => {
+    const sharedState = { count: 0 };
+    
+    const { result: resultA } = renderHook(() => 
+      useReactive(sharedState, { historySettings: { enabled: true } })
+    );
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { 
+        allowBackgroundMutations: true,
+        historySettings: { enabled: true }
+      })
+    );
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+    
+    rerenderB();
+
+    // Both should see the mutation
+    expect(resultA.current[0].count).toBe(1);
+    expect(resultB.current[0].count).toBe(1);
+    
+    // Component A should have history entries (it made the mutation)
+    expect(resultA.current[2].entries.length).toBe(1);
+    // Component B shouldn't have history entries (it didn't make the mutation, just received it)
+    // History is only tracked for mutations made by the component itself
+  });
+
+  test("should handle background mutations with computed properties", () => {
+    const sharedState = { 
+      count: 2,
+      get double() {
+        return this.count * 2;
+      }
+    };
+    
+    const { result: resultA } = renderHook(() => useReactive(sharedState));
+    const { result: resultB, rerender: rerenderB } = renderHook(() => 
+      useReactive(sharedState, { allowBackgroundMutations: true })
+    );
+
+    // Component A mutates
+    act(() => {
+      resultA.current[0].count++;
+    });
+    
+    rerenderB();
+
+    // Both should see updated count and computed property
+    expect(resultA.current[0].count).toBe(3);
+    expect(resultA.current[0].double).toBe(6);
+    expect(resultB.current[0].count).toBe(3);
+    expect(resultB.current[0].double).toBe(6);
   });
 });

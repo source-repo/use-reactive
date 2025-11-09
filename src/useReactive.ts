@@ -613,28 +613,117 @@ export function useReactive<T extends object>(
                         return true;
                     }
                     
+                    // Check if this is a nested object being mutated (has a parent)
+                    const parentInfo = (obj as any)[PARENT_INFO];
+                    const isNestedObject = parentInfo !== undefined;
+                    
+                    // If this is a nested object and the parent is a copy, we need to ensure
+                    // this nested object is also copied before mutating
+                    if (isNestedObject && !(obj as any)[IS_COPY]) {
+                        const parent = parentInfo.parent as T & ReactiveObjectVersion;
+                        // Check if parent is a copy (either directly or through a proxy entry)
+                        let parentIsCopy = parent[IS_COPY] === true;
+                        
+                        // Also check if the parent has a PROXY_VERSIONS entry that indicates it's a copy
+                        const parentProxyVersions = parent[PROXY_VERSIONS];
+                        if (parentProxyVersions) {
+                            // Check if any proxy entry has a state (copy)
+                            for (const [, item] of parentProxyVersions) {
+                                if (item.state === parent) {
+                                    parentIsCopy = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (parentIsCopy) {
+                            // Parent is a copy - create a copy of this nested object
+                            const nestedCopy = shallowCopy(obj as any, parent);
+                            nestedCopy[PARENT_INFO] = parentInfo;
+                            
+                            // Replace the reference in the parent copy
+                            parent[parentInfo.key as keyof T] = nestedCopy as any;
+                            
+                            // Set up state map for the nested copy
+                            const nestedCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                            stateMapRef.current.set(nestedCopy, nestedCopyStateMap);
+                            syncState(nestedCopy as T, stateMapRef.current, nestedCopyStateMap);
+                            
+                            // Update parent's state map
+                            const parentStateMap = stateMapRef.current.get(parent);
+                            if (parentStateMap) {
+                                parentStateMap.set(parentInfo.key, [true, nestedCopyStateMap, nestedCopy]);
+                            }
+                            
+                            // Use the copy for mutation
+                            obj = nestedCopy as T & ReactiveObjectVersion;
+                        }
+                    }
+                    
                     // Copy-on-write: Check if we're trying to mutate the source object
                     const proxyVersions = obj[PROXY_VERSIONS];
                     const isSource = obj[IS_COPY] !== true;
                     let actualObj = obj;
                     let proxyEntry = proxyVersions?.get(receiver);
                     
-                    // If mutating source and there are multiple users, the mutator needs a copy
-                    if (isSource && proxyVersions && proxyVersions.size > 1 && !proxyEntry?.state) {
-                        // Create a shallow copy for the mutator
-                        const copy = shallowCopy(obj, obj);
-                        proxyEntry = proxyVersions.get(receiver);
-                        if (proxyEntry) {
-                            proxyEntry.state = copy;
-                            
-                            // Set up state map for the copy
-                            const copyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
-                            stateMapRef.current.set(copy, copyStateMap);
-                            
-                            // Sync the state map
-                            syncState(copy, stateMapRef.current, copyStateMap);
+                    // Check if any other users have allowBackgroundMutations
+                    let hasBackgroundMutationUsers = false;
+                    let hasNonBackgroundMutationUsers = false;
+                    if (isSource && proxyVersions && proxyVersions.size > 1) {
+                        for (const [userProxy, item] of proxyVersions) {
+                            if (userProxy !== receiver) {
+                                if (item.allowBackgroundMutations) {
+                                    hasBackgroundMutationUsers = true;
+                                } else {
+                                    hasNonBackgroundMutationUsers = true;
+                                }
+                            }
                         }
-                        actualObj = copy;
+                    }
+                    
+                    // Check if the mutator has allowBackgroundMutations
+                    const mutatorHasAllowBackgroundMutations = proxyEntry?.allowBackgroundMutations === true;
+                    
+                    // If mutating source and there are multiple users:
+                    // - If there are users with allowBackgroundMutations, mutate the source (no copy for mutator)
+                    //   so they can see the mutations. Create copies for users without allowBackgroundMutations.
+                    // - If no users have allowBackgroundMutations, create a copy for the mutator
+                    //   and copies for other users without allowBackgroundMutations
+                    if (isSource && proxyVersions && proxyVersions.size > 1 && !proxyEntry?.state) {
+                        // Create copies for users without allowBackgroundMutations (they should be isolated)
+                        for (const [userProxy, item] of proxyVersions) {
+                            if (userProxy !== receiver && !item.allowBackgroundMutations && !item.state) {
+                                const copy = shallowCopy(obj, obj);
+                                item.state = copy;
+                                
+                                // Set up state map for the copy
+                                const copyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                                stateMapRef.current.set(copy, copyStateMap);
+                                
+                                // Sync the state map
+                                syncState(copy, stateMapRef.current, copyStateMap);
+                            }
+                        }
+                        
+                        // Create a copy for the mutator only if there are no background mutation users
+                        if (!hasBackgroundMutationUsers) {
+                            // No background mutation users - create a copy for the mutator
+                            const copy = shallowCopy(obj, obj);
+                            proxyEntry = proxyVersions.get(receiver);
+                            if (proxyEntry) {
+                                proxyEntry.state = copy;
+                                
+                                // Set up state map for the copy
+                                const copyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                                stateMapRef.current.set(copy, copyStateMap);
+                                
+                                // Sync the state map
+                                syncState(copy, stateMapRef.current, copyStateMap);
+                            }
+                            actualObj = copy;
+                        }
+                        // If hasBackgroundMutationUsers, mutate the source directly (actualObj stays as obj)
+                        // so that components with allowBackgroundMutations can see the mutations
                     } else if (proxyEntry?.state) {
                         // This proxy already has a copy - use it
                         actualObj = proxyEntry.state as T & ReactiveObjectVersion;
@@ -664,8 +753,16 @@ export function useReactive<T extends object>(
                         }
                     }
                     
-                    const stateMap = stateMapRef.current?.get(actualObj);
-                    if (!stateMap?.has(prop as keyof T)) return false;
+                    let stateMap = stateMapRef.current?.get(actualObj);
+                    if (!stateMap) {
+                        // Create state map if it doesn't exist (shouldn't happen, but be safe)
+                        stateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                        stateMapRef.current.set(actualObj, stateMap);
+                    }
+                    if (!stateMap.has(prop as keyof T)) {
+                        // Property not in state map - add it
+                        stateMap.set(prop as keyof T, [false, undefined, actualObj[prop as keyof T]]);
+                    }
                     const [, map, lastPropValue] = stateMap.get(prop as keyof T)!;
 
                     const previousValue = actualObj[prop as keyof T];
@@ -701,15 +798,20 @@ export function useReactive<T extends object>(
                         if (isSource && proxyVersions && proxyVersions.size > 1) {
                             for (const [userProxy, item] of proxyVersions) {
                                 if (userProxy !== receiver) {
-                                    if (item.allowBackgroundMutations && item.state) {
-                                        // User allows background mutations - update their copy
-                                        const copy = item.state as T & ReactiveObjectVersion;
-                                        copy[prop as keyof T] = value;
-                                        
-                                        // Update the state map for the copy
-                                        const copyStateMap = stateMapRef.current.get(copy);
-                                        if (copyStateMap) {
-                                            copyStateMap.set(prop as keyof T, [true, map, lastPropValue]);
+                                    if (item.allowBackgroundMutations) {
+                                        if (item.state) {
+                                            // User already has a copy - update it
+                                            const copy = item.state as T & ReactiveObjectVersion;
+                                            copy[prop as keyof T] = value;
+                                            
+                                            // Update the state map for the copy
+                                            const copyStateMap = stateMapRef.current.get(copy);
+                                            if (copyStateMap) {
+                                                copyStateMap.set(prop as keyof T, [true, map, lastPropValue]);
+                                            }
+                                        } else {
+                                            // User doesn't have a copy yet - update the source directly
+                                            // (they'll read from source which now has the mutation)
                                         }
                                         
                                         // Trigger React re-render for this component via stored trigger function
@@ -717,7 +819,8 @@ export function useReactive<T extends object>(
                                             item.triggerUpdate();
                                         }
                                     }
-                                    // Other users without allowBackgroundMutations keep the original (unmutated) object
+                                    // Other users without allowBackgroundMutations should have gotten copies earlier
+                                    // (created in the copy-on-write logic above)
                                 }
                             }
                         }
