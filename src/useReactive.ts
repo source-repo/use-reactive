@@ -141,12 +141,19 @@ export const STATE_VERSION = Symbol("stateVersion");
 export const PROXY_VERSIONS = Symbol("storeVersion");
 export const SOURCE_OBJECT = Symbol("sourceObject");
 export const IS_COPY = Symbol("isCopy");
+export const PARENT_INFO = Symbol("parentInfo"); // Stores parent reference and key for nested objects
 
 export interface ReactiveObjectVersion {
     [STATE_VERSION]?: number;
-    [PROXY_VERSIONS]?: Map<object, { version: number, state?: object, allowBackgroundMutations?: boolean }>;
+    [PROXY_VERSIONS]?: Map<object, { 
+        version: number, 
+        state?: object, 
+        allowBackgroundMutations?: boolean,
+        triggerUpdate?: () => void // Callback to trigger React re-render for this proxy
+    }>;
     [SOURCE_OBJECT]?: object; // Reference to the source object if this is a copy
     [IS_COPY]?: boolean; // True if this is a copy, false if it's the source
+    [PARENT_INFO]?: { parent: object, key: string | number | symbol }; // Parent reference for nested objects
 }
 
 /**
@@ -486,6 +493,7 @@ export function useReactive<T extends object>(
                             const arrayCopy = [...value] as any;
                             arrayCopy[IS_COPY] = true;
                             arrayCopy[SOURCE_OBJECT] = actualObj;
+                            arrayCopy[PARENT_INFO] = { parent: actualObj, key };
                             
                             // Replace the reference in the parent copy
                             actualObj[key as keyof T] = arrayCopy as any;
@@ -498,6 +506,11 @@ export function useReactive<T extends object>(
                             }
                             
                             value = arrayCopy;
+                        } else if (!arrayIsCopy) {
+                            // Track parent relationship for shared arrays
+                            if (!(value as any)[PARENT_INFO]) {
+                                (value as any)[PARENT_INFO] = { parent: actualObj, key };
+                            }
                         }
                         
                         return new Proxy(value, {
@@ -555,7 +568,16 @@ export function useReactive<T extends object>(
                                 parentStateMap.set(key, [true, nestedCopyStateMap, nestedCopy]);
                             }
                             
+                            // Track parent-child relationship for the copy (store on object itself)
+                            (nestedCopy as any)[PARENT_INFO] = { parent: actualObj, key };
+                            
                             value = nestedCopy;
+                        } else {
+                            // Track parent-child relationship for shared nested objects
+                            // Store on object itself so it's accessible across hook instances
+                            if (!(value as any)[PARENT_INFO]) {
+                                (value as any)[PARENT_INFO] = { parent: actualObj, key };
+                            }
                         }
                         
                         let result = nestedproxyrefs.current.get(value);
@@ -648,7 +670,34 @@ export function useReactive<T extends object>(
 
                     const previousValue = actualObj[prop as keyof T];
                     if (!isEqual(previousValue, value)) {
+                        // Check if we're mutating a nested object (not the root)
+                        const isNestedMutation = actualObj !== obj || actualObj[IS_COPY] === true;
+                        const parentInfo = isNestedMutation ? (actualObj as any)[PARENT_INFO] : null;
+                        
+                        // Find the root parent object that contains this nested object
+                        let rootParent: (T & ReactiveObjectVersion) | null = null;
+                        let rootParentKey: string | number | symbol | null = null;
+                        
+                        if (parentInfo) {
+                            // Traverse up to find the root parent
+                            let currentParent = parentInfo.parent as T & ReactiveObjectVersion;
+                            rootParentKey = parentInfo.key;
+                            
+                            // Keep traversing up until we find the root (no parent or source object)
+                            while (currentParent) {
+                                const currentParentInfo = (currentParent as any)[PARENT_INFO];
+                                if (!currentParentInfo || currentParent[IS_COPY] !== true) {
+                                    // Found the root parent
+                                    rootParent = currentParent;
+                                    break;
+                                }
+                                currentParent = currentParentInfo.parent as T & ReactiveObjectVersion;
+                                rootParentKey = currentParentInfo.key;
+                            }
+                        }
+                        
                         // Handle background mutations for other users
+                        // For root-level mutations
                         if (isSource && proxyVersions && proxyVersions.size > 1) {
                             for (const [userProxy, item] of proxyVersions) {
                                 if (userProxy !== receiver) {
@@ -663,12 +712,38 @@ export function useReactive<T extends object>(
                                             copyStateMap.set(prop as keyof T, [true, map, lastPropValue]);
                                         }
                                         
-                                        // Note: Background mutations update the copy, but we can't directly
-                                        // trigger React re-renders for other components. Components with
-                                        // allowBackgroundMutations should subscribe to changes or periodically
-                                        // check for updates if they need to react to background mutations.
+                                        // Trigger React re-render for this component via stored trigger function
+                                        if (item.triggerUpdate) {
+                                            item.triggerUpdate();
+                                        }
                                     }
                                     // Other users without allowBackgroundMutations keep the original (unmutated) object
+                                }
+                            }
+                        }
+                        
+                        // For nested object mutations, propagate to components with allowBackgroundMutations
+                        if (rootParent && rootParentKey !== null) {
+                            const rootProxyVersions = rootParent[PROXY_VERSIONS];
+                            if (rootProxyVersions && rootProxyVersions.size > 1) {
+                                for (const [userProxy, item] of rootProxyVersions) {
+                                    if (userProxy !== receiver) {
+                                        if (item.allowBackgroundMutations && item.state) {
+                                            // User allows background mutations - update their copy's nested object
+                                            const copy = item.state as T & ReactiveObjectVersion;
+                                            const nestedInCopy = copy[rootParentKey as keyof T];
+                                            
+                                            if (nestedInCopy && typeof nestedInCopy === 'object') {
+                                                // Update the nested property in the copy
+                                                (nestedInCopy as any)[prop] = value;
+                                        
+                                                // Trigger React re-render for this component
+                                                if (item.triggerUpdate) {
+                                                    item.triggerUpdate();
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -707,10 +782,11 @@ export function useReactive<T extends object>(
             if (!target[PROXY_VERSIONS]) {
                 target[PROXY_VERSIONS] = new Map();
             }
-            // Save the proxy and the version of the target
+            // Save the proxy and the version of the target, including trigger function
             (target[PROXY_VERSIONS]).set(proxy, { 
                 version: currentVersion, 
-                allowBackgroundMutations: allowBackgroundMutationsRef.current 
+                allowBackgroundMutations: allowBackgroundMutationsRef.current,
+                triggerUpdate: () => setTrigger((prev) => prev + 1)
             });
 
             return proxy;

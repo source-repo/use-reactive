@@ -144,7 +144,7 @@ T is the state object, S is a subscribe function and E is an effect function, li
     - A function returning a dependency array.
   
   - `historySettings?`: Settings for the `history` function.
-  - `allowBackgroundMutations?`: When `true`, allows this component to receive mutations from other components sharing the same state object. When `false` (default), the component gets its own isolated copy when mutations occur (copy-on-write). Note: Background mutations update the copy but don't automatically trigger React re-renders - use subscriptions if you need to react to them.
+  - `allowBackgroundMutations?`: When `true`, allows this component to receive mutations from other components sharing the same state object. When `false` (default), the component gets its own isolated copy when mutations occur (copy-on-write). Background mutations automatically trigger React re-renders for components with this option enabled.
 
 
 #### Returns:
@@ -541,9 +541,9 @@ const ComponentB = () => {
 };
 ```
 
-In this example, Component B will see mutations made by Component A because it has `allowBackgroundMutations: true`.
+In this example, Component B will see mutations made by Component A because it has `allowBackgroundMutations: true`. React re-renders are automatically triggered when background mutations occur, so Component B will update in real-time.
 
-**Note**: Background mutations update the copy but don't automatically trigger React re-renders. If you need to react to background mutations, use the `subscribe` function or `effects` option.
+**Note**: Background mutations work for both top-level and nested properties. Direct mutations of nested object properties (e.g., `state.nested.value = 5`) automatically propagate to other components with `allowBackgroundMutations: true` and trigger React re-renders.
 
 ## createReactiveStore
 
