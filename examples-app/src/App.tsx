@@ -10,7 +10,7 @@ function delay(ms: number) {
 }
 
 const ManEx = () => {
-    const [state, _subscribe, _history] = useReactive(
+    const [state] = useReactive(
     { // Reactive state object with methods
         count: 0,
         increment() { 

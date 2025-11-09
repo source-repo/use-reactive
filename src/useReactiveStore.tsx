@@ -40,9 +40,11 @@ export function createReactiveStore<T extends object>(initialState: T, options?:
         if (!context) {
             throw new Error("useReactiveStore must be used within a ReactiveStoreProvider");
         }
+        const [contextStore, contextSubscribe, contextHistory] = context;
+        // Create a trigger to force updates
         const [, setTrigger] = React.useState(0);
         // Create a proxy to track the subscriptions
-        const proxyProxy = useReactive(context[0], { noUseState: true });
+        const [store, subscribe, history] = useReactive(contextStore, { noUseState: true });
         // Track the subscriptions
         const subscriptionsRef = useRef<WeakMap<object, Map<string, boolean>> | null>(null);
         if (!subscriptionsRef.current) {
@@ -51,7 +53,7 @@ export function createReactiveStore<T extends object>(initialState: T, options?:
         const removerRef = useRef<() => void | null>(null);
         if (!removerRef.current) {
             // Subscribe to the proxy to track the subscriptions
-            removerRef.current = proxyProxy[1](() => proxyProxy[0], function (state, key, _value, _previous, read) {
+            removerRef.current = subscribe(() => store, function (state, key, _value, _previous, read) {
                 // Get the map of subscriptions for the state
                 let map = subscriptionsRef.current!.get(state);
                 if (!map) {
@@ -63,13 +65,13 @@ export function createReactiveStore<T extends object>(initialState: T, options?:
                 if (read && !map.has(key as string)) {
                     // Subscribe to the key
                     map.set(key as string, true);                    
-                    context[1](() => state[key as keyof T], () => {
+                    contextSubscribe(() => state[key as keyof T], () => {
                         setTrigger((prev: any) => prev + 1);
                     });
                 }
             }, 'deep', true)
-        }        
-        return [ proxyProxy[0], context[1], context[2] ] as const;
+        }      
+        return [ store, contextSubscribe, contextHistory ] as const;
     }
     return [ReactiveStoreProvider, useReactiveStore] as const;
 }

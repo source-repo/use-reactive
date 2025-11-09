@@ -24,7 +24,7 @@ interface SE<T> {
     callback: SC<T>,
     targets: {
         obj: object,
-        prop: keyof T
+        key: keyof T
     }[]
 };
 
@@ -72,6 +72,14 @@ function isEqual(x: any, y: any): boolean {
         ok(x).length === ok(y).length &&
         ok(x).every(key => isEqual(x[key], y[key]))
     ) : (x === y);
+}
+
+export const STATE_VERSION = Symbol("stateVersion");
+export const PROXY_VERSIONS = Symbol("storeVersion");
+
+export interface ReactiveObjectVersion {
+    [STATE_VERSION]?: number;
+    [PROXY_VERSIONS]?: Map<object, { version: number, state?: object }>;
 }
 
 /**
@@ -165,7 +173,7 @@ export function useReactive<T extends object>(
     if (typeof window === "undefined") {
         throw new Error("useReactive should only be used in the browser");
     }
-    const reactiveStateRef = useRef(inputState);
+    const reactiveStateRef = useRef<T & ReactiveObjectVersion>(inputState);
     const [, setTriggerF] = useState(0); // State updater to trigger re-renders
     const setTrigger = (foo: (prev: number) => number) => { 
         if (!options?.noUseState) {
@@ -173,6 +181,7 @@ export function useReactive<T extends object>(
         }   
     };
     const proxyRef = useRef<T>(null);
+    const versionMapRef = useRef(new WeakMap<object, number>());
     const nestedproxyrefs = useRef<Map<object, T>>(new Map());
     const stateMapRef = useRef<WeakMap<object, PropertyMap>>(new WeakMap());
     const subscribersRef = useRef<Array<SE<T>>>([]);
@@ -354,17 +363,23 @@ export function useReactive<T extends object>(
 
     // Create a proxy for the state object if it doesn't exist
     if (!proxyRef.current) {
-        const createReactiveProxy = (target: T): T => {
+        const createReactiveProxy = (target: T & ReactiveObjectVersion): T => {
+            if (target[STATE_VERSION] === undefined) {
+                target[STATE_VERSION] = 0;
+            }
             const proxy = new Proxy(target, {
-                get(obj, prop: string | symbol) {
+                get(obj, prop: string | symbol, receiver) {
                     const key = prop as keyof T;
+                    if (typeof key === "symbol") {
+                        return Reflect.get(obj, prop, receiver);
+                    }
 
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
                             if (subscriber.recording) {
-                                const exists = subscriber.targets.some(target => target.obj === obj && target.prop === key);
+                                const exists = subscriber.targets.some(target => target.obj === obj && target.key === key);
                                 if (!exists) {
-                                    subscriber.targets.push({ obj, prop: key });
+                                    subscriber.targets.push({ obj, key });
                                 }
                             }
                         }
@@ -429,7 +444,7 @@ export function useReactive<T extends object>(
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
                             if (subscriber.onRead && !subscriber.recording) {
-                                if (subscriber.targets.some(target => target.obj === obj && target.prop === prop)) {
+                                if (subscriber.targets.some(target => target.obj === obj && target.key === prop)) {
                                     subscriber.callback.call(proxy, proxy, prop as keyof T, value, value, true);
                                 }
                             }
@@ -438,14 +453,38 @@ export function useReactive<T extends object>(
 
                     return value;
                 },
-                set(obj, prop: string | symbol, value) {
+                set(obj, prop: string | symbol, value, receiver) {
+                    if (typeof prop === "symbol") {
+                        Reflect.set(obj, prop, value);
+                        return true;
+                    }
                     const stateMap = stateMapRef.current?.get(obj);
                     if (!stateMap?.has(prop as keyof T)) return false;
                     const [, map, propValue] = stateMap.get(prop as keyof T)!;
+
                     const previousValue = obj[prop as keyof T];
                     if (!isEqual(previousValue, value)) {
+                        // Check for other users of the same object
+                        if (obj[STATE_VERSION] && obj[PROXY_VERSIONS] && obj[PROXY_VERSIONS].size > 1) {
+                            obj[STATE_VERSION]++;
+                            let copy;
+                            for (const [userProxy, item] of obj[PROXY_VERSIONS]) {
+                                if (userProxy !== receiver && item.version === obj[STATE_VERSION]) {
+                                    // Make a shallow copy once
+                                    if (!copy)
+                                        copy = { ...obj };
+                                    item.state = copy;
+                                    item.version = obj[STATE_VERSION];
+                                }
+                            }
+                        }
+
                         stateMap.set(prop as keyof T, [true, map, propValue]);
                         obj[prop as keyof T] = value;
+
+                        obj[STATE_VERSION]!++;
+                        versionMapRef.current.set(proxy, target[STATE_VERSION]!);
+
                         if (historySettingsRef.current.enabled) {
                             if (historyRef.current.length >= (historySettingsRef.current.maxDepth ?? 100))
                                 historyRef.current.shift();
@@ -456,7 +495,7 @@ export function useReactive<T extends object>(
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
                             if (!subscriber.recording) {
-                                if (subscriber.targets.some(target => target.obj === obj && target.prop === prop)) {
+                                if (subscriber.targets.some(target => target.obj === obj && target.key === prop)) {
                                     subscriber.callback.call(proxy, proxy, prop as keyof T, value, previousValue, false);
                                 }
                             }
@@ -465,6 +504,18 @@ export function useReactive<T extends object>(
                     return true;
                 },
             });
+            versionMapRef.current.set(proxy, target[STATE_VERSION] ?? 0);
+
+            // Store the current version of the state
+            const currentVersion = target[STATE_VERSION] ?? 0;
+
+            // Create a map of used target version for each proxy using the target
+            if (!target[PROXY_VERSIONS]) {
+                target[PROXY_VERSIONS] = new Map();
+            }
+            // Save the proxy and the version of the target
+            (target[PROXY_VERSIONS]).set(proxy, { version: currentVersion });
+
             return proxy;
         }
         proxyRef.current = createReactiveProxy(reactiveStateRef.current);
