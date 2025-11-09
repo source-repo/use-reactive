@@ -476,6 +476,30 @@ export function useReactive<T extends object>(
 
                     // Proxy arrays to trigger updates on mutating methods
                     if (Array.isArray(value)) {
+                        // Copy-on-write for arrays: If we're accessing an array from a copy,
+                        // and the array is shared (not a copy), we need to create a copy
+                        const arrayIsCopy = (value as any)[IS_COPY] === true;
+                        const isArrayInCopy = actualObj[IS_COPY] === true;
+                        
+                        if (isArrayInCopy && !arrayIsCopy) {
+                            // We're accessing a shared array from a copy - create a copy lazily
+                            const arrayCopy = [...value] as any;
+                            arrayCopy[IS_COPY] = true;
+                            arrayCopy[SOURCE_OBJECT] = actualObj;
+                            
+                            // Replace the reference in the parent copy
+                            actualObj[key as keyof T] = arrayCopy as any;
+                            
+                            // Update the state map for the parent
+                            const parentStateMap = stateMapRef.current.get(actualObj);
+                            if (parentStateMap) {
+                                const [, , ] = parentStateMap.get(key) || [false, undefined, value];
+                                parentStateMap.set(key, [true, undefined, arrayCopy]);
+                            }
+                            
+                            value = arrayCopy;
+                        }
+                        
                         return new Proxy(value, {
                             get(arrTarget, arrProp) {
                                 const prevValue = [...arrTarget];
@@ -505,13 +529,34 @@ export function useReactive<T extends object>(
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        // Check if this nested object needs copy-on-write
+                        // Copy-on-write for nested objects: If we're accessing a nested object from a copy,
+                        // and the nested object is shared (not a copy), we need to create a copy
                         const nestedIsCopy = (value as any)[IS_COPY] === true;
                         const isNestedInCopy = actualObj[IS_COPY] === true;
                         
-                        // If we're accessing a nested object from a copy, and the nested object is not yet a copy,
-                        // we might need to copy it. But we'll do that lazily when it's mutated.
-                        // For now, just return the nested object (it's shared until mutated)
+                        if (isNestedInCopy && !nestedIsCopy) {
+                            // We're accessing a shared nested object from a copy - create a copy lazily
+                            const nestedCopy = shallowCopy(value as any, actualObj);
+                            
+                            // Replace the reference in the parent copy so future accesses use the copy
+                            actualObj[key as keyof T] = nestedCopy as any;
+                            
+                            // Set up state map for the nested copy
+                            const nestedCopyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                            stateMapRef.current.set(nestedCopy, nestedCopyStateMap);
+                            
+                            // Sync the state map for the nested copy
+                            syncState(nestedCopy as T, stateMapRef.current, nestedCopyStateMap);
+                            
+                            // Update the state map for the parent to reflect the new nested copy
+                            const parentStateMap = stateMapRef.current.get(actualObj);
+                            if (parentStateMap) {
+                                const [, , ] = parentStateMap.get(key) || [false, undefined, value];
+                                parentStateMap.set(key, [true, nestedCopyStateMap, nestedCopy]);
+                            }
+                            
+                            value = nestedCopy;
+                        }
                         
                         let result = nestedproxyrefs.current.get(value);
                         if (!result) {
@@ -585,7 +630,10 @@ export function useReactive<T extends object>(
                         if (!nestedIsCopy && actualObj[IS_COPY] === true) {
                             if (Array.isArray(propValue)) {
                                 // Copy the array shallowly
-                                value = [...propValue as any];
+                                const arrayCopy = [...propValue] as any;
+                                arrayCopy[IS_COPY] = true;
+                                arrayCopy[SOURCE_OBJECT] = actualObj;
+                                value = arrayCopy;
                             } else {
                                 // Copy the nested object shallowly
                                 const nestedCopy = shallowCopy(propValue as any, actualObj);
@@ -593,12 +641,6 @@ export function useReactive<T extends object>(
                             }
                         }
                     }
-                    // Note: Direct mutations of nested object properties (e.g., state.nested.value = 5)
-                    // will go through the nested object's proxy set handler, which doesn't have
-                    // access to the parent's copy context. This means nested objects are shared
-                    // until the entire nested object is replaced. This is a limitation of the
-                    // current implementation - true nested copy-on-write would require tracking
-                    // parent copy contexts, which is more complex.
                     
                     const stateMap = stateMapRef.current?.get(actualObj);
                     if (!stateMap?.has(prop as keyof T)) return false;
