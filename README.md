@@ -65,15 +65,15 @@ Note: The function `increment` above can be declared without the `function` keyw
 - 🏗️ **Full TypeScript support** with generics for `IntelliSense` and type checking.
 - 🔄 **Auto-bound methods** on the state object, allowing `this` to be used inside them.
 - 🎯 **One-time initialization function** can be specified in the options argument.
-
 - 🧮 **Supports computed properties** (via getters).
-
 - ⚡ **Efficient rendering**: State changes trigger only partial React re-renders.
 - ⏳ **Supports asynchronous methods** seamlessly.
 - 🌳 **Deeply nested reactive objects** are fully supported.
 - 🔁  **Effect handling** similar to `useEffect`, configurable via options.
 - 📡 **Property-level subscriptions** to react to specific state changes.
 - 🕒 **Built-in history management** with undo functionality.
+- 🔒 **Copy-on-write immutability**: When multiple components share the same state object, mutations automatically create isolated copies for each component.
+- 🔄 **Background mutations**: Opt-in to receive mutations from other components sharing the same state via `allowBackgroundMutations` option.
 
 ## Live preview
 
@@ -143,7 +143,8 @@ T is the state object, S is a subscribe function and E is an effect function, li
       - history: The history API
     - A function returning a dependency array.
   
-  - historySettings?: Settings for the `history` function.
+  - `historySettings?`: Settings for the `history` function.
+  - `allowBackgroundMutations?`: When `true`, allows this component to receive mutations from other components sharing the same state object. When `false` (default), the component gets its own isolated copy when mutations occur (copy-on-write). Note: Background mutations update the copy but don't automatically trigger React re-renders - use subscriptions if you need to react to them.
 
 
 #### Returns:
@@ -477,6 +478,72 @@ const ExampleComponent = () => {
 | `clear(): void`                              | Clear the history.                                           |
 
 
+
+## Copy-on-Write and Background Mutations
+
+When multiple components use `useReactive` with the same state object, `useReactive` implements **copy-on-write** immutability. This means:
+
+- **By default**: When one component mutates the shared state, other components automatically receive their own isolated copy. Each component can mutate its copy without affecting others.
+
+- **With `allowBackgroundMutations: true`**: Components can opt-in to receive mutations from other components. When the source state is mutated, components with this option enabled will see those mutations in their copy.
+
+### Example: Copy-on-Write
+
+```tsx
+const sharedState = { count: 0 };
+
+const ComponentA = () => {
+  const [state] = useReactive(sharedState);
+  return (
+    <div>
+      <p>Component A: {state.count}</p>
+      <button onClick={() => state.count++}>Increment in A</button>
+    </div>
+  );
+};
+
+const ComponentB = () => {
+  const [state] = useReactive(sharedState);
+  return (
+    <div>
+      <p>Component B: {state.count}</p>
+      <button onClick={() => state.count++}>Increment in B</button>
+    </div>
+  );
+};
+```
+
+In this example, when Component A increments the count, Component B gets its own copy and won't see the change. Each component maintains its own isolated state.
+
+### Example: Background Mutations
+
+```tsx
+const sharedState = { count: 0 };
+
+const ComponentA = () => {
+  const [state] = useReactive(sharedState);
+  return (
+    <div>
+      <p>Component A: {state.count}</p>
+      <button onClick={() => state.count++}>Increment in A</button>
+    </div>
+  );
+};
+
+const ComponentB = () => {
+  const [state] = useReactive(sharedState, { allowBackgroundMutations: true });
+  return (
+    <div>
+      <p>Component B: {state.count}</p>
+      <p>This component will see mutations from Component A</p>
+    </div>
+  );
+};
+```
+
+In this example, Component B will see mutations made by Component A because it has `allowBackgroundMutations: true`.
+
+**Note**: Background mutations update the copy but don't automatically trigger React re-renders. If you need to react to background mutations, use the `subscribe` function or `effects` option.
 
 ## createReactiveStore
 

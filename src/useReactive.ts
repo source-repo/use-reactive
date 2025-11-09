@@ -14,7 +14,8 @@ export interface RO<T> {
     init?: (this: T, state: T, subscribe: S<T>, history: H<T>) => void,
     effects?: Array<[E<T>, (this: T, state: T, subscribe: S<T>, history: H<T>) => unknown[]]>,
     historySettings?: HistorySettings,
-    noUseState?: boolean
+    noUseState?: boolean,
+    allowBackgroundMutations?: boolean
 }
 
 // Subscriber entry
@@ -74,12 +75,78 @@ function isEqual(x: any, y: any): boolean {
     ) : (x === y);
 }
 
+/**
+ * Creates a shallow copy of an object, preserving functions and getters.
+ * Nested objects are not copied - they'll be copied on write when accessed.
+ * Used for copy-on-write immutability.
+ */
+function shallowCopy<T extends object>(obj: T, sourceObject?: object): T & ReactiveObjectVersion {
+    if (typeof obj !== 'object' || obj === null) {
+        return obj as T & ReactiveObjectVersion;
+    }
+
+    // Handle arrays - shallow copy, but mark as copy
+    if (Array.isArray(obj)) {
+        const copy = [...obj] as any;
+        copy[IS_COPY] = true;
+        if (sourceObject) {
+            copy[SOURCE_OBJECT] = sourceObject;
+        }
+        return copy;
+    }
+
+    // Create a new object with shallow copy
+    const copy = {} as T & ReactiveObjectVersion;
+    
+    // Copy all properties shallowly (nested objects are shared until mutated)
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+            if (descriptor) {
+                if (descriptor.get || descriptor.set) {
+                    // Preserve getters and setters
+                    Object.defineProperty(copy, key, descriptor);
+                } else {
+                    // Copy values directly (including nested objects - they're shared)
+                    copy[key as keyof T] = descriptor.value;
+                }
+            }
+        }
+    }
+
+    // Copy symbol properties (like STATE_VERSION, PROXY_VERSIONS, etc.)
+    const symbols = Object.getOwnPropertySymbols(obj);
+    for (const sym of symbols) {
+        if (sym === SOURCE_OBJECT || sym === IS_COPY) {
+            continue; // Don't copy these, we'll set them below
+        }
+        const value = (obj as any)[sym];
+        if (sym === PROXY_VERSIONS) {
+            // Don't copy PROXY_VERSIONS - each copy gets its own
+            continue;
+        }
+        (copy as any)[sym] = value;
+    }
+
+    // Mark as copy and set source reference
+    copy[IS_COPY] = true;
+    if (sourceObject) {
+        copy[SOURCE_OBJECT] = sourceObject;
+    }
+
+    return copy;
+}
+
 export const STATE_VERSION = Symbol("stateVersion");
 export const PROXY_VERSIONS = Symbol("storeVersion");
+export const SOURCE_OBJECT = Symbol("sourceObject");
+export const IS_COPY = Symbol("isCopy");
 
 export interface ReactiveObjectVersion {
     [STATE_VERSION]?: number;
-    [PROXY_VERSIONS]?: Map<object, { version: number, state?: object }>;
+    [PROXY_VERSIONS]?: Map<object, { version: number, state?: object, allowBackgroundMutations?: boolean }>;
+    [SOURCE_OBJECT]?: object; // Reference to the source object if this is a copy
+    [IS_COPY]?: boolean; // True if this is a copy, false if it's the source
 }
 
 /**
@@ -188,6 +255,7 @@ export function useReactive<T extends object>(
     const historyRef = useRef<HE<T>[]>([]);
     const historySettingsRef = useRef<HistorySettings>({ enabled: false, maxDepth: 100 });
     const redoStack = useRef<HE<T>[]>([]);
+    const allowBackgroundMutationsRef = useRef<boolean>(options?.allowBackgroundMutations ?? false);
 
     if (options?.historySettings?.enabled)
         historySettingsRef.current.enabled = options.historySettings.enabled;
@@ -374,12 +442,23 @@ export function useReactive<T extends object>(
                         return Reflect.get(obj, prop, receiver);
                     }
 
+                    // Check if this proxy has a copy (copy-on-write)
+                    let actualObj = obj;
+                    const proxyVersions = obj[PROXY_VERSIONS];
+                    if (proxyVersions) {
+                        const proxyEntry = proxyVersions.get(receiver);
+                        if (proxyEntry?.state) {
+                            // This proxy has a copy - use it instead of the source
+                            actualObj = proxyEntry.state as T & ReactiveObjectVersion;
+                        }
+                    }
+
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
                             if (subscriber.recording) {
-                                const exists = subscriber.targets.some(target => target.obj === obj && target.key === key);
+                                const exists = subscriber.targets.some(target => target.obj === actualObj && target.key === key);
                                 if (!exists) {
-                                    subscriber.targets.push({ obj, key });
+                                    subscriber.targets.push({ obj: actualObj, key });
                                 }
                             }
                         }
@@ -387,13 +466,13 @@ export function useReactive<T extends object>(
                     let value: any
 
                     // Handle computed properties (getters)
-                    const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+                    const descriptor = Object.getOwnPropertyDescriptor(actualObj, key);
                     const isFunction = descriptor?.value && typeof descriptor.value === "function";
                     const isGetter = descriptor?.get && typeof descriptor.get === "function";
                     if (isGetter) {
                         value = descriptor.get!.call(proxy);
                     } else
-                        value = obj[key];
+                        value = actualObj[key];
 
                     // Proxy arrays to trigger updates on mutating methods
                     if (Array.isArray(value)) {
@@ -407,12 +486,12 @@ export function useReactive<T extends object>(
                                     return (...args: any[]) => {
                                         const result = arrValue.apply(arrTarget, args);
                                         if (!isEqual(prevValue, arrTarget)) {
-                                            const stateMap = stateMapRef.current?.get(obj);
-                                            if (!stateMap?.has(prop as keyof T)) return false;
-                                            const [, map, propValue] = stateMap.get(prop as keyof T)!;
+                                            const stateMap = stateMapRef.current?.get(actualObj);
+                                            if (!stateMap?.has(key as keyof T)) return false;
+                                            const [, map, propValue] = stateMap.get(key as keyof T)!;
                                             if (!isEqual(prevValue, arrTarget)) {
-                                                stateMap.set(prop as keyof T, [true, map, propValue]);
-                                                obj[prop as keyof T] = arrTarget as any;
+                                                stateMap.set(key as keyof T, [true, map, propValue]);
+                                                actualObj[key as keyof T] = arrTarget as any;
                                                 setTrigger((prev) => prev + 1);
                                             }
                                         }
@@ -426,6 +505,14 @@ export function useReactive<T extends object>(
 
                     // Wrap nested objects in proxies
                     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+                        // Check if this nested object needs copy-on-write
+                        const nestedIsCopy = (value as any)[IS_COPY] === true;
+                        const isNestedInCopy = actualObj[IS_COPY] === true;
+                        
+                        // If we're accessing a nested object from a copy, and the nested object is not yet a copy,
+                        // we might need to copy it. But we'll do that lazily when it's mutated.
+                        // For now, just return the nested object (it's shared until mutated)
+                        
                         let result = nestedproxyrefs.current.get(value);
                         if (!result) {
                             result = createReactiveProxy(value as T);
@@ -444,7 +531,7 @@ export function useReactive<T extends object>(
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
                             if (subscriber.onRead && !subscriber.recording) {
-                                if (subscriber.targets.some(target => target.obj === obj && target.key === prop)) {
+                                if (subscriber.targets.some(target => target.obj === actualObj && target.key === prop)) {
                                     subscriber.callback.call(proxy, proxy, prop as keyof T, value, value, true);
                                 }
                             }
@@ -458,31 +545,96 @@ export function useReactive<T extends object>(
                         Reflect.set(obj, prop, value);
                         return true;
                     }
-                    const stateMap = stateMapRef.current?.get(obj);
+                    
+                    // Copy-on-write: Check if we're trying to mutate the source object
+                    const proxyVersions = obj[PROXY_VERSIONS];
+                    const isSource = obj[IS_COPY] !== true;
+                    let actualObj = obj;
+                    let proxyEntry = proxyVersions?.get(receiver);
+                    
+                    // If mutating source and there are multiple users, the mutator needs a copy
+                    if (isSource && proxyVersions && proxyVersions.size > 1 && !proxyEntry?.state) {
+                        // Create a shallow copy for the mutator
+                        const copy = shallowCopy(obj, obj);
+                        proxyEntry = proxyVersions.get(receiver);
+                        if (proxyEntry) {
+                            proxyEntry.state = copy;
+                            
+                            // Set up state map for the copy
+                            const copyStateMap = new Map<string | number | symbol, [boolean, PropertyMap | undefined, any]>();
+                            stateMapRef.current.set(copy, copyStateMap);
+                            
+                            // Sync the state map
+                            syncState(copy, stateMapRef.current, copyStateMap);
+                        }
+                        actualObj = copy;
+                    } else if (proxyEntry?.state) {
+                        // This proxy already has a copy - use it
+                        actualObj = proxyEntry.state as T & ReactiveObjectVersion;
+                    }
+                    
+                    // Handle nested object/array mutations - copy-on-write for nested structures
+                    // When replacing a nested object/array property, copy it if it's shared
+                    const propValue = actualObj[prop as keyof T];
+                    if (propValue !== null && typeof propValue === 'object') {
+                        // Check if we're replacing a nested object/array that might be shared
+                        const nestedIsCopy = (propValue as any)[IS_COPY] === true;
+                        
+                        // If the nested object is shared (not a copy) and we're mutating from a copy,
+                        // we need to copy it before replacing it
+                        if (!nestedIsCopy && actualObj[IS_COPY] === true) {
+                            if (Array.isArray(propValue)) {
+                                // Copy the array shallowly
+                                value = [...propValue as any];
+                            } else {
+                                // Copy the nested object shallowly
+                                const nestedCopy = shallowCopy(propValue as any, actualObj);
+                                value = nestedCopy;
+                            }
+                        }
+                    }
+                    // Note: Direct mutations of nested object properties (e.g., state.nested.value = 5)
+                    // will go through the nested object's proxy set handler, which doesn't have
+                    // access to the parent's copy context. This means nested objects are shared
+                    // until the entire nested object is replaced. This is a limitation of the
+                    // current implementation - true nested copy-on-write would require tracking
+                    // parent copy contexts, which is more complex.
+                    
+                    const stateMap = stateMapRef.current?.get(actualObj);
                     if (!stateMap?.has(prop as keyof T)) return false;
-                    const [, map, propValue] = stateMap.get(prop as keyof T)!;
+                    const [, map, lastPropValue] = stateMap.get(prop as keyof T)!;
 
-                    const previousValue = obj[prop as keyof T];
+                    const previousValue = actualObj[prop as keyof T];
                     if (!isEqual(previousValue, value)) {
-                        // Check for other users of the same object
-                        if (obj[STATE_VERSION] && obj[PROXY_VERSIONS] && obj[PROXY_VERSIONS].size > 1) {
-                            obj[STATE_VERSION]++;
-                            let copy;
-                            for (const [userProxy, item] of obj[PROXY_VERSIONS]) {
-                                if (userProxy !== receiver && item.version === obj[STATE_VERSION]) {
-                                    // Make a shallow copy once
-                                    if (!copy)
-                                        copy = { ...obj };
-                                    item.state = copy;
-                                    item.version = obj[STATE_VERSION];
+                        // Handle background mutations for other users
+                        if (isSource && proxyVersions && proxyVersions.size > 1) {
+                            for (const [userProxy, item] of proxyVersions) {
+                                if (userProxy !== receiver) {
+                                    if (item.allowBackgroundMutations && item.state) {
+                                        // User allows background mutations - update their copy
+                                        const copy = item.state as T & ReactiveObjectVersion;
+                                        copy[prop as keyof T] = value;
+                                        
+                                        // Update the state map for the copy
+                                        const copyStateMap = stateMapRef.current.get(copy);
+                                        if (copyStateMap) {
+                                            copyStateMap.set(prop as keyof T, [true, map, lastPropValue]);
+                                        }
+                                        
+                                        // Note: Background mutations update the copy, but we can't directly
+                                        // trigger React re-renders for other components. Components with
+                                        // allowBackgroundMutations should subscribe to changes or periodically
+                                        // check for updates if they need to react to background mutations.
+                                    }
+                                    // Other users without allowBackgroundMutations keep the original (unmutated) object
                                 }
                             }
                         }
 
-                        stateMap.set(prop as keyof T, [true, map, propValue]);
-                        obj[prop as keyof T] = value;
+                        stateMap.set(prop as keyof T, [true, map, lastPropValue]);
+                        actualObj[prop as keyof T] = value;
 
-                        obj[STATE_VERSION]!++;
+                        actualObj[STATE_VERSION] = (actualObj[STATE_VERSION] ?? 0) + 1;
                         versionMapRef.current.set(proxy, target[STATE_VERSION]!);
 
                         if (historySettingsRef.current.enabled) {
@@ -495,7 +647,7 @@ export function useReactive<T extends object>(
                     if (subscribersRef.current) {
                         for (const subscriber of subscribersRef.current) {
                             if (!subscriber.recording) {
-                                if (subscriber.targets.some(target => target.obj === obj && target.key === prop)) {
+                                if (subscriber.targets.some(target => target.obj === actualObj && target.key === prop)) {
                                     subscriber.callback.call(proxy, proxy, prop as keyof T, value, previousValue, false);
                                 }
                             }
@@ -514,7 +666,10 @@ export function useReactive<T extends object>(
                 target[PROXY_VERSIONS] = new Map();
             }
             // Save the proxy and the version of the target
-            (target[PROXY_VERSIONS]).set(proxy, { version: currentVersion });
+            (target[PROXY_VERSIONS]).set(proxy, { 
+                version: currentVersion, 
+                allowBackgroundMutations: allowBackgroundMutationsRef.current 
+            });
 
             return proxy;
         }
