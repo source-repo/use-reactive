@@ -1,4 +1,3 @@
-export type LiveKey = string;
 export type LivePath = Array<string | number | symbol>;
 export type Unsubscribe = () => void;
 export type MaybePromise<T> = T | Promise<T>;
@@ -8,9 +7,14 @@ export type LiveWrite =
     | { type: "delete"; path: LivePath };
 
 export interface LiveMeta {
-    key?: LiveKey;
+    label?: string;
     owner?: string;
     location?: "local" | "remote";
+}
+
+export interface LiveToken<TSnapshot, TCommands = Record<string, never>> {
+    readonly id: symbol;
+    readonly label: string;
 }
 
 export interface Live<TSnapshot> {
@@ -25,11 +29,11 @@ export interface LiveBinding<TSnapshot, TCommands = Record<string, never>> exten
 
 export interface LiveContext {
     provide<TSnapshot, TCommands>(
-        key: LiveKey,
+        token: LiveToken<TSnapshot, TCommands>,
         binding: LiveBinding<TSnapshot, TCommands>
     ): Unsubscribe;
     resolve<TSnapshot, TCommands = Record<string, never>>(
-        key: LiveKey
+        token: LiveToken<TSnapshot, TCommands>
     ): LiveBinding<TSnapshot, TCommands>;
     child(): LiveContext;
     subscribe(listener: () => void): Unsubscribe;
@@ -131,26 +135,37 @@ function proxyForPath<TState extends object>(
     );
 }
 
+export function createLiveToken<TSnapshot, TCommands = Record<string, never>>(
+    label: string
+): LiveToken<TSnapshot, TCommands> {
+    return {
+        id: Symbol(label),
+        label,
+    };
+}
+
 export function createLiveContext(parent?: LiveContext): LiveContext {
-    const bindings = new Map<LiveKey, LiveBinding<unknown, unknown>>();
+    const bindings = new Map<symbol, LiveBinding<unknown, unknown>>();
     const listeners = new Set<() => void>();
 
     return {
-        provide(key, binding) {
-            bindings.set(key, binding as LiveBinding<unknown, unknown>);
+        provide(token, binding) {
+            bindings.set(token.id, binding as LiveBinding<unknown, unknown>);
             notify(listeners);
             return () => {
-                if (bindings.get(key) === binding) {
-                    bindings.delete(key);
+                if (bindings.get(token.id) === binding) {
+                    bindings.delete(token.id);
                     notify(listeners);
                 }
             };
         },
-        resolve<TSnapshot, TCommands = Record<string, never>>(key: LiveKey) {
-            const local = bindings.get(key);
+        resolve<TSnapshot, TCommands = Record<string, never>>(
+            token: LiveToken<TSnapshot, TCommands>
+        ) {
+            const local = bindings.get(token.id);
             if (local) return local as LiveBinding<TSnapshot, TCommands>;
-            if (parent) return parent.resolve<TSnapshot, TCommands>(key);
-            throw new Error(`No live binding for "${key}"`);
+            if (parent) return parent.resolve(token);
+            throw new Error(`No live binding for "${token.label}"`);
         },
         child() {
             return createLiveContext(this);

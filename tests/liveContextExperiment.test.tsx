@@ -3,6 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import {
   createLiveContext,
+  createLiveToken,
   createLocalLive,
   type LiveWrite,
 } from "../experiments/live-context/core";
@@ -11,23 +12,36 @@ import { createSourceRpcLiveBinding } from "../experiments/live-context/source-r
 
 describe("live-context experiment", () => {
   test("resolves live bindings through a logical context tree", () => {
+    const CounterToken = createLiveToken<{ count: number }>("Counter");
     const root = createLiveContext();
     const child = root.child();
     const rootCounter = createLocalLive({ count: 1 });
     const childCounter = createLocalLive({ count: 10 });
 
-    root.provide("counter", rootCounter);
+    root.provide(CounterToken, rootCounter);
 
-    expect(root.resolve<{ count: number }>("counter").getSnapshot().count).toBe(1);
-    expect(child.resolve<{ count: number }>("counter").getSnapshot().count).toBe(1);
+    expect(root.resolve(CounterToken).getSnapshot().count).toBe(1);
+    expect(child.resolve(CounterToken).getSnapshot().count).toBe(1);
 
-    const removeOverride = child.provide("counter", childCounter);
+    const removeOverride = child.provide(CounterToken, childCounter);
 
-    expect(child.resolve<{ count: number }>("counter").getSnapshot().count).toBe(10);
+    expect(child.resolve(CounterToken).getSnapshot().count).toBe(10);
 
     removeOverride();
 
-    expect(child.resolve<{ count: number }>("counter").getSnapshot().count).toBe(1);
+    expect(child.resolve(CounterToken).getSnapshot().count).toBe(1);
+  });
+
+  test("token identity prevents label collisions", () => {
+    const FirstCounter = createLiveToken<{ count: number }>("Counter");
+    const SecondCounter = createLiveToken<{ count: number }>("Counter");
+    const context = createLiveContext();
+
+    context.provide(FirstCounter, createLocalLive({ count: 1 }));
+    context.provide(SecondCounter, createLocalLive({ count: 2 }));
+
+    expect(context.resolve(FirstCounter).getSnapshot().count).toBe(1);
+    expect(context.resolve(SecondCounter).getSnapshot().count).toBe(2);
   });
 
   test("local live state can be consumed by React", () => {
@@ -50,14 +64,15 @@ describe("live-context experiment", () => {
   });
 
   test("reactive context resolution can switch bindings", () => {
+    const CounterToken = createLiveToken<{ count: number }>("Counter");
     const context = createLiveContext();
     const first = createLocalLive({ count: 1 });
     const second = createLocalLive({ count: 2 });
 
-    context.provide("counter", first);
+    context.provide(CounterToken, first);
 
     const Counter = () => {
-      const snapshot = useContextLive<{ count: number }>(context, "counter");
+      const snapshot = useContextLive(context, CounterToken);
       return <p data-testid="count">{snapshot.count}</p>;
     };
 
@@ -66,7 +81,7 @@ describe("live-context experiment", () => {
     expect(screen.getByTestId("count").textContent).toBe("1");
 
     act(() => {
-      context.provide("counter", second);
+      context.provide(CounterToken, second);
     });
 
     expect(screen.getByTestId("count").textContent).toBe("2");

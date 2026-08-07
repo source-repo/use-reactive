@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Live, LiveContext, LiveKey } from "./core";
+import type { Live, LiveContext, LiveToken } from "./core";
 
 export function useLive<TSnapshot>(live: Live<TSnapshot>): TSnapshot {
     return useSyncExternalStore(
@@ -9,14 +9,14 @@ export function useLive<TSnapshot>(live: Live<TSnapshot>): TSnapshot {
     );
 }
 
-export function useContextLive<TSnapshot>(
+export function useContextLive<TSnapshot, TCommands = Record<string, never>>(
     context: LiveContext,
-    key: LiveKey
+    token: LiveToken<TSnapshot, TCommands>
 ): TSnapshot {
     const live = useSyncExternalStore(
         context.subscribe,
-        () => context.resolve<TSnapshot>(key),
-        () => context.resolve<TSnapshot>(key)
+        () => context.resolve(token),
+        () => context.resolve(token)
     );
 
     return useLive(live);
