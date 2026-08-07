@@ -2,7 +2,7 @@
   "name": "@diginet/use-reactive",
   "version": "7.0.0",
   "description": "A small object-shaped reactive state hook for React.",
-  "main": "dist/index.cjs.js",
+  "main": "dist/index.cjs",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -10,11 +10,12 @@
   "exports": {
     "types": "./dist/index.d.ts",
     "import": "./dist/index.esm.js",
-    "require": "./dist/index.cjs.js",
+    "require": "./dist/index.cjs",
     "default": "./dist/index.esm.js"
   },
   "scripts": {
-    "build": "tsc && rollup -c",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc && rollup -c",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "prepare": "npm run build"

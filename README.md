@@ -55,6 +55,8 @@ const state = useReactive<T extends object>(initialState: T): T
 
 Data properties are initial state. If a component rerenders with a different object literal, existing state is preserved. Methods and getters are refreshed on each render, so they can close over current props and local React state.
 
+Treat root-level methods, getters and setters as behavior definitions rather than mutable state. Add, update and remove ordinary data fields on the returned object; define behavior on the input object passed to `useReactive`.
+
 ## Examples
 
 ### Counter

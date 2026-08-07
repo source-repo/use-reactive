@@ -221,4 +221,30 @@ describe("Components", () => {
     fireEvent.click(screen.getByText("Increment"));
     expect(screen.getByTestId("sum").textContent).toBe("101");
   });
+
+  test("works under React StrictMode", () => {
+    const Counter = () => {
+      const state = useReactive({
+        count: 0,
+        increment() {
+          this.count++;
+        },
+      });
+      return (
+        <div>
+          <p data-testid="count">{state.count}</p>
+          <button onClick={state.increment}>Increment</button>
+        </div>
+      );
+    };
+
+    render(
+      <React.StrictMode>
+        <Counter />
+      </React.StrictMode>
+    );
+
+    fireEvent.click(screen.getByText("Increment"));
+    expect(screen.getByTestId("count").textContent).toBe("1");
+  });
 });

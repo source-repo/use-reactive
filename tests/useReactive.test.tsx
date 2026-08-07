@@ -92,6 +92,57 @@ describe("useReactive", () => {
     expect(result.current.double).toBe(6);
   });
 
+  test("supports root-level setters", () => {
+    const { result } = renderHook(() =>
+      useReactive({
+        count: 2,
+        get double() {
+          return this.count * 2;
+        },
+        set double(value: number) {
+          this.count = value / 2;
+        },
+      })
+    );
+
+    act(() => {
+      result.current.double = 10;
+    });
+
+    expect(result.current.count).toBe(5);
+    expect(result.current.double).toBe(10);
+  });
+
+  test("supports delete, in, and own-key reflection", () => {
+    const { result } = renderHook(() =>
+      useReactive({
+        count: 1,
+        label: "ready",
+        increment() {
+          this.count++;
+        },
+        get doubled() {
+          return this.count * 2;
+        },
+      })
+    );
+
+    expect("count" in result.current).toBe(true);
+    expect("increment" in result.current).toBe(true);
+    expect(Object.keys(result.current)).toEqual(
+      expect.arrayContaining(["count", "label", "increment", "doubled"])
+    );
+
+    act(() => {
+      delete result.current.label;
+    });
+
+    expect("label" in result.current).toBe(false);
+    expect("increment" in result.current).toBe(true);
+    expect(Object.keys(result.current)).not.toContain("label");
+    expect(Object.keys(result.current)).toContain("increment");
+  });
+
   test("supports async methods", async () => {
     const { result } = renderHook(() =>
       useReactive({
@@ -127,6 +178,31 @@ describe("useReactive", () => {
     rerender({ offset: 7 });
 
     expect(result.current.sum).toBe(17);
+  });
+
+  test("refreshes method closures on rerender", () => {
+    const { result, rerender } = renderHook(
+      ({ amount }) =>
+        useReactive({
+          count: 0,
+          add() {
+            this.count += amount;
+          },
+        }),
+      { initialProps: { amount: 1 } }
+    );
+
+    act(() => {
+      result.current.add();
+    });
+    expect(result.current.count).toBe(1);
+
+    rerender({ amount: 5 });
+
+    act(() => {
+      result.current.add();
+    });
+    expect(result.current.count).toBe(6);
   });
 
   test("treats data properties as initial state after creation", () => {
@@ -183,5 +259,17 @@ describe("useReactive", () => {
 
     expect(resultA.current.count).toBe(1);
     expect(resultB.current.count).toBe(0);
+  });
+
+  test("clones Date values without mutating the input object", () => {
+    const input = { createdAt: new Date("2026-08-07T00:00:00.000Z") };
+    const { result } = renderHook(() => useReactive(input));
+
+    act(() => {
+      result.current.createdAt.setUTCFullYear(2030);
+    });
+
+    expect(result.current.createdAt.getUTCFullYear()).toBe(2030);
+    expect(input.createdAt.getUTCFullYear()).toBe(2026);
   });
 });
