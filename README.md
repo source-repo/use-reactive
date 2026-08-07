@@ -139,9 +139,50 @@ const App = () => (
 
 Only components that read a changed property rerender.
 
+## History
+
+Use `useReactiveWithHistory` when a component needs undo and redo. It returns the reactive object plus a small history controller.
+
+```tsx
+const [state, history] = useReactiveWithHistory({
+    count: 0,
+    increment() {
+        this.count++;
+    },
+});
+
+return (
+    <>
+        <button
+            onClick={() => {
+                state.increment();
+                history.commit();
+            }}
+        >
+            Increment
+        </button>
+        <button onClick={history.undo} disabled={!history.canUndo}>Undo</button>
+        <button onClick={history.redo} disabled={!history.canRedo}>Redo</button>
+    </>
+);
+```
+
+History is explicit: call `history.commit()` after a meaningful state change. This records full data snapshots and avoids wiring mutation observers into the core hook.
+
+```ts
+const [state, history] = useReactiveWithHistory(initialState)
+
+history.commit()
+history.undo()
+history.redo()
+history.reset()
+```
+
+The history controller exposes `canUndo`, `canRedo`, `index` and `length`. `reset(nextState?)` clears history and restores the initial snapshot, optionally patched with replacement data.
+
 ## Removed In Version 7
 
-Version 7 deliberately removes the tuple return value, built-in subscriptions, built-in history and hook-managed effects. Use React's own `useEffect` for effects. If you need history or network-backed observable state, build that as a separate layer around this smaller core.
+Version 7 deliberately removes the old tuple return value, built-in subscriptions, automatic mutation history and hook-managed effects. Use React's own `useEffect` for effects. Use `useReactiveWithHistory` when explicit undo and redo are needed.
 
 ## License
 

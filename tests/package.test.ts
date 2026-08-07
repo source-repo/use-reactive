@@ -26,11 +26,12 @@ describe("package output", () => {
         "const mod = await import('./dist/index.esm.js');",
         "if (typeof mod.useReactive !== 'function') throw new Error('missing useReactive');",
         "if (typeof mod.createReactiveStore !== 'function') throw new Error('missing createReactiveStore');",
+        "if (typeof mod.useReactiveWithHistory !== 'function') throw new Error('missing useReactiveWithHistory');",
         "console.log(Object.keys(mod).sort().join(','));",
       ].join("\n"),
     ]);
 
-    expect(output.trim()).toBe("createReactiveStore,useReactive");
+    expect(output.trim()).toBe("createReactiveStore,useReactive,useReactiveWithHistory");
   });
 
   test("can be required as CommonJS", () => {
@@ -40,11 +41,12 @@ describe("package output", () => {
         "const mod = require('./dist/index.cjs');",
         "if (typeof mod.useReactive !== 'function') throw new Error('missing useReactive');",
         "if (typeof mod.createReactiveStore !== 'function') throw new Error('missing createReactiveStore');",
+        "if (typeof mod.useReactiveWithHistory !== 'function') throw new Error('missing useReactiveWithHistory');",
         "console.log(Object.keys(mod).sort().join(','));",
       ].join("\n"),
     ]);
 
-    expect(output.trim()).toBe("createReactiveStore,useReactive");
+    expect(output.trim()).toBe("createReactiveStore,useReactive,useReactiveWithHistory");
   });
 
   test("can render on the server", () => {
@@ -75,7 +77,7 @@ describe("package output", () => {
       join(dir, "consumer.tsx"),
       [
         "import React from 'react';",
-        "import { createReactiveStore, useReactive } from '../../dist/index.js';",
+        "import { createReactiveStore, useReactive, useReactiveWithHistory } from '../../dist/index.js';",
         "",
         "const state = useReactive({",
         "  count: 0,",
@@ -98,6 +100,12 @@ describe("package output", () => {
         "store.user.name satisfies string;",
         "const element: React.ReactElement = React.createElement(Provider, { children: null });",
         "void element;",
+        "",
+        "const [stateWithHistory, history] = useReactiveWithHistory({ count: 0 });",
+        "stateWithHistory.count satisfies number;",
+        "history.commit();",
+        "history.undo();",
+        "history.canRedo satisfies boolean;",
       ].join("\n")
     );
     writeFileSync(
