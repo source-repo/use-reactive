@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button.jsx";
 import { useReactive } from "./symlink/useReactive.js";
 import { createReactiveStore } from "./symlink/useReactiveStore.js";
@@ -70,7 +70,6 @@ const StoreCounter1 = memo(() => {
         <div>
             <h4>Counter 1: {store.counter1}</h4>
             <Button onClick={() => store.counter1++}>Increment</Button>
-            Renders marker {Math.random()}
         </div>
     );
 });
@@ -82,7 +81,6 @@ const StoreCounter2 = memo(() => {
         <div>
             <h4>Counter 2: {store.counter2}</h4>
             <Button onClick={() => store.counter2++}>Increment</Button>
-            Renders marker {Math.random()}
         </div>
     );
 });
@@ -96,22 +94,16 @@ const StoreUserInfo = memo(() => {
                 User: {store.user.name}, Age: {store.user.age}
             </h4>
             <Button onClick={() => store.user.age++}>Increase age</Button>
-            Renders marker {Math.random()}
         </div>
     );
 });
 
 const CounterView = memo(
     ({ label, count, onIncrement }: { label: string; count: number; onIncrement: () => void }) => {
-        const renders = useRef(0);
-        renders.current++;
-
         return (
             <div>
                 <h4>{label}</h4>
-                <p>
-                    Count: {count}, renders {renders.current}
-                </p>
+                <p>Count: {count}</p>
                 <Button onClick={onIncrement}>Increment</Button>
             </div>
         );
